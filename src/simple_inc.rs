@@ -50,15 +50,23 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
         .concat(addr_step.clone())
         .concat(UDynVarSys::from_iter([step_stage.clone()]));
 
+    fn to_mach_state(ms: U2VarSys, ads: UDynVarSys, ss: BoolVarSys) -> UDynVarSys {
+        UDynVarSys::from(ms)
+            .concat(ads)
+            .concat(UDynVarSys::from_iter([ss]))
+    }
+    let addr_step_zero = UDynVarSys::from_n(0u32, addr_step.bitnum());
     // 1. Load proc id to mem_address
     let mut mach_out_1 = InfParOutputSys::new(config);
-    mach_out_1.state = UDynVarSys::from(int_ite(
-        (&addr_step).equal(&addr_step_max),
-        U2VarSys::from(1u32),
-        U2VarSys::from(0u32),
-    ))
-    .concat(&addr_step + 1u32)
-    .concat(UDynVarSys::from_iter([!&step_stage]));
+    mach_out_1.state = to_mach_state(
+        int_ite(
+            (&addr_step).equal(&addr_step_max),
+            U2VarSys::from(1u32),
+            U2VarSys::from(0u32),
+        ),
+        &addr_step + 1u32,
+        !&step_stage,
+    );
     mach_out_1.dpr = !&step_stage;
     mach_out_1.dpw = step_stage.clone();
     mach_out_1.dpval = mobj.in_dpval.clone();
@@ -70,24 +78,18 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
     mach_out_1.dpmove = DPMOVE_FORWARD.into();
     // 2. Read memory
     let mut mach_out_2 = InfParOutputSys::new(config);
-    mach_out_2.state = UDynVarSys::from_n(2u32, 2)
-        .concat(UDynVarSys::from_n(0u32, addr_step.bitnum()))
-        .concat(UDynVarSys::from_iter([BoolVarSys::from(false)]));
+    mach_out_2.state = to_mach_state(2u32.into(), addr_step_zero.clone(), false.into());
     mach_out_2.memr = BoolVarSys::from(true);
     mach_out_2.memw = BoolVarSys::from(false);
     // 3. Increment and write memory
     let mut mach_out_3 = InfParOutputSys::new(config);
-    mach_out_3.state = UDynVarSys::from_n(3u32, 2)
-        .concat(UDynVarSys::from_n(0u32, addr_step.bitnum()))
-        .concat(UDynVarSys::from_iter([BoolVarSys::from(false)]));
+    mach_out_3.state = to_mach_state(3u32.into(), addr_step_zero.clone(), false.into());
     mach_out_3.memr = BoolVarSys::from(false);
     mach_out_3.memw = BoolVarSys::from(true);
     mach_out_3.memval = &mobj.in_memval + 1u32;
     // 4. Move back positions
     let mut mach_out_4 = InfParOutputSys::new(config);
-    mach_out_4.state = UDynVarSys::from_n(3u32, 2)
-        .concat(&addr_step + 1u32)
-        .concat(UDynVarSys::from_iter([!&step_stage]));
+    mach_out_4.state = to_mach_state(3u32.into(), addr_step_zero.clone(), !&step_stage);
     mach_out_4.dpr = !&step_stage;
     mach_out_4.dpw = step_stage.clone();
     mach_out_4.dkind = int_ite(
@@ -101,12 +103,7 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
     // join
     let final_state = dynint_table(
         UDynVarSys::from(main_stage),
-        [
-            mach_out_1.to_dynintvar(),
-            mach_out_2.to_dynintvar(),
-            mach_out_3.to_dynintvar(),
-            mach_out_4.to_dynintvar(),
-        ],
+        [mach_out_1, mach_out_2, mach_out_3, mach_out_4].map(|v| v.to_dynintvar()),
     );
     mobj.in_state = Some(in_state);
     mobj.from_dynintvar(final_state);
