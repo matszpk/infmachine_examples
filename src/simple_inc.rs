@@ -64,7 +64,7 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
             U2VarSys::from(1u32),
             U2VarSys::from(0u32),
         ),
-        &addr_step + 1u32,
+        dynint_ite_r(&step_stage, &(&addr_step + 1u32), &addr_step),
         !&step_stage,
     );
     mach_out_1.dpr = !&step_stage;
