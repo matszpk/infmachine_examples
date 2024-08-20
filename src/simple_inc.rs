@@ -60,7 +60,7 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
     let mut mach_out_1 = InfParOutputSys::new(config);
     mach_out_1.state = to_mach_state(
         int_ite(
-            (&addr_step).equal(&addr_step_max),
+            &step_stage & (&addr_step).equal(&addr_step_max),
             U2VarSys::from(1u32),
             U2VarSys::from(0u32),
         ),
@@ -98,7 +98,7 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
         U2VarSys::from(DKIND_PROC_ID),
     );
     mach_out_4.dpmove = DPMOVE_BACKWARD.into();
-    mach_out_4.stop = !&step_stage & !&mobj.in_dp_move_done;
+    mach_out_4.stop = &step_stage & !&mobj.in_dp_move_done;
 
     // join
     let final_state = dynint_table(
