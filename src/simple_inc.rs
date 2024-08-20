@@ -108,7 +108,6 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
             mach_out_4.to_dynintvar(),
         ],
     );
-    println!("InState: {}", final_state.bitnum());
     mobj.in_state = Some(in_state);
     mobj.from_dynintvar(final_state);
     mobj.to_machine().to_toml()
