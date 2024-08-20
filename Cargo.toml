@@ -1,0 +1,11 @@
+[package]
+name = "infmachine_examples0"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "simple_inc"
+path = "src/simple_inc.rs"
+
+[dependencies]
+infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
