@@ -15,7 +15,11 @@ const fn calc_log_bits(n: usize) -> usize {
     }
 }
 
-fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml::ser::Error> {
+fn gen_simple_inc(
+    cell_len_bits: u32,
+    proc_num_bits: u32,
+    real_proc_num_bits: u32,
+) -> Result<String, toml::ser::Error> {
     let config = InfParInterfaceConfig {
         cell_len_bits,
         data_part_len: 1 << cell_len_bits,
@@ -23,9 +27,9 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
     let mut mobj = InfParMachineObjectSys::new(
         config,
         InfParEnvConfig {
-            proc_num: 1 << proc_num_bits,
+            proc_num: 1 << real_proc_num_bits,
             flat_memory: true,
-            max_mem_size: Some((1 << (proc_num_bits + cell_len_bits)) >> 3),
+            max_mem_size: Some((1 << (real_proc_num_bits + cell_len_bits)) >> 3),
             max_temp_buffer_len: 64,
         },
     );
@@ -113,13 +117,18 @@ fn main() {
     args.next().unwrap();
     let cell_len_bits: u32 = args.next().unwrap().parse().unwrap();
     let proc_num_bits: u32 = args.next().unwrap().parse().unwrap();
-    assert_ne!(cell_len_bits, 0);
+    let real_proc_num_bits: u32 = if let Some(arg) = args.next() {
+        arg.parse().unwrap()
+    } else {
+        proc_num_bits
+    };
     assert!(cell_len_bits <= 16);
     assert_ne!(proc_num_bits, 0);
-    assert!(proc_num_bits < 64);
     assert!((1 << cell_len_bits) < proc_num_bits);
+    assert!(real_proc_num_bits <= proc_num_bits);
+    assert!(real_proc_num_bits < 64);
     print!(
         "{}",
-        callsys(|| gen_simple_inc(cell_len_bits, proc_num_bits).unwrap())
+        callsys(|| gen_simple_inc(cell_len_bits, proc_num_bits, real_proc_num_bits).unwrap())
     );
 }
