@@ -90,8 +90,6 @@ fn gen_simple_inc(cell_len_bits: u32, proc_num_bits: u32) -> Result<String, toml
     // 4. Move back positions
     let mut mach_out_4 = InfParOutputSys::new(config);
     mach_out_4.state = to_mach_state(3u32.into(), addr_step_zero.clone(), !&step_stage);
-    mach_out_4.dpr = !&step_stage;
-    mach_out_4.dpw = step_stage.clone();
     mach_out_4.dkind = int_ite(
         step_stage.clone(),
         U2VarSys::from(DKIND_MEM_ADDRESS),
