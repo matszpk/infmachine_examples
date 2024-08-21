@@ -107,6 +107,8 @@ fn gen_prefix_sum(
     // 4.3. If no carry ((1 << i) < mem_addres) then skip all steps.
     // 4.4. Read value of this address.
     // 4.5. Add to state_value and store into state_value.
+    // 5. Load proc_id to mem address
+    // 6. Store state_value into memory.
     mobj.to_machine().to_toml()
 }
 
