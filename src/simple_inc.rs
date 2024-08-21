@@ -105,7 +105,9 @@ fn gen_simple_inc(
     // join
     let final_state = dynint_table(
         UDynVarSys::from(main_stage),
-        [mach_out_1, mach_out_2, mach_out_3, mach_out_4].map(|v| v.to_dynintvar()),
+        [mach_out_1, mach_out_2, mach_out_3, mach_out_4]
+            .into_iter()
+            .map(|v| v.to_dynintvar()),
     );
     mobj.in_state = Some(in_state);
     mobj.from_dynintvar(final_state);

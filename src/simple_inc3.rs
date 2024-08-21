@@ -106,7 +106,9 @@ fn gen_simple_inc(
     // join
     let final_state = dynint_table(
         UDynVarSys::from(main_stage),
-        [mach_out_1, mach_out_2, mach_out_3, mach_out_4].map(|v| v.to_dynintvar()),
+        [mach_out_1, mach_out_2, mach_out_3, mach_out_4]
+            .into_iter()
+            .map(|v| v.to_dynintvar()),
     );
     mobj.in_state = Some(in_state);
     mobj.from_dynintvar(final_state);
@@ -132,7 +134,12 @@ fn main() {
     assert!(real_proc_num_bits < 64);
     print!(
         "{}",
-        callsys(|| gen_simple_inc(cell_len_bits, data_part_len,
-                                  proc_num_bits, real_proc_num_bits).unwrap())
+        callsys(|| gen_simple_inc(
+            cell_len_bits,
+            data_part_len,
+            proc_num_bits,
+            real_proc_num_bits
+        )
+        .unwrap())
     );
 }
