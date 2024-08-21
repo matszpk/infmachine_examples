@@ -108,7 +108,7 @@ fn gen_prefix_sum(
     // 4.2.2. Subtract bit from mem_address_part and store mem_address_part.
     // 4.2.3. Subtract old carry from mem_address_part and store mem_address_part.
     // 4.2.4. Move back position to start
-    // 4.3. If no carry ((1 << addr_sub_bit) < mem_addres) then skip all steps.
+    // 4.3. If no carry ((1 << addr_sub_bit) < mem_addres) then skip all iterations.
     // 4.4. Read value of this address.
     // 4.5. Add to state_value and store into state_value.
     // 5. Load proc_id to mem address
