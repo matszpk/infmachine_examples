@@ -117,7 +117,7 @@ fn main() {
     assert!(cell_len_bits <= 16);
     assert_ne!(proc_num_bits, 0);
     assert!(proc_num_bits < 64);
-    assert!(cell_len_bits < proc_num_bits);
+    assert!((1 << cell_len_bits) < proc_num_bits);
     print!(
         "{}",
         callsys(|| gen_simple_inc(cell_len_bits, proc_num_bits).unwrap())
