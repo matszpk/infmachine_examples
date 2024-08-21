@@ -11,5 +11,9 @@ path = "src/simple_inc.rs"
 name = "simple_inc2"
 path = "src/simple_inc2.rs"
 
+[[bin]]
+name = "simple_inc3"
+path = "src/simple_inc3.rs"
+
 [dependencies]
 infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
