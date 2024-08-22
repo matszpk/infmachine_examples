@@ -107,7 +107,8 @@ fn gen_state_test(
     let old_state = StateTestState::new(data_part_len, max_proc_num_bits, value_bits, iter_num);
     let addr_step_max =
         UDynVarSys::from_n(old_state.addr_step_num - 1, old_state.addr_step.bitnum());
-    // 1. Load proc id to mem_address
+    let iter_max = UDynVarSys::from_n(iter_num - 1, old_state.iter_count.bitnum());
+    // 1. Load proc id to mem_address and to value
     let mut state_1 = old_state.clone();
     state_1.main_stage = int_ite(
         &old_state.step_stage & (&old_state.addr_step).equal(&addr_step_max),
@@ -125,7 +126,7 @@ fn gen_state_test(
         &old_state.step_stage,
         &(&state_1.value
             | (UDynVarSys::try_from_n(mobj.in_dpval.clone(), value_bits as usize).unwrap()
-                << (old_state.addr_step * data_part_len))),
+                << (&old_state.addr_step * data_part_len))),
         &state_1.value,
     );
     let mut mach_out_1 = InfParOutputSys::new(config);
@@ -139,6 +140,16 @@ fn gen_state_test(
         U2VarSys::from(DKIND_PROC_ID),
     );
     mach_out_1.dpmove = DPMOVE_FORWARD.into();
+    // 2. Do calculations
+    let mut state_2 = old_state.clone();
+    state_2.main_stage = int_ite(
+        (&old_state.iter_count).equal(iter_max),
+        U2VarSys::from(2u32),
+        U2VarSys::from(1u32),
+    );
+    state_2.iter_count = &old_state.iter_count + 1u8;
+    state_2.value = (&old_state.value + 0x11aabcdu32) * (&old_state.value + 0xfa2135u32);
+    // 3. Do write lowest part of value to memory
     mobj.to_machine().to_toml()
 }
 
