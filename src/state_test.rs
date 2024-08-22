@@ -107,16 +107,16 @@ fn gen_state_test(
     );
     state_1.step_stage = !&old_state.step_stage;
     // store proc id into state.value in given position.
-    let value_bits_bits = calc_log_bits(value_bits as usize);
-    let old_dpval = UDynVarSys::try_from_n(mobj.in_dpval.clone(), 1 << value_bits_bits).unwrap();
-    let data_part_len_cut = data_part_len & ((1 << value_bits_bits) - 1);
+    // use highest possible shift: addr_step_num * data_part_len
+    let max_init_value_bits = old_state.addr_step_num * (data_part_len as usize);
+    let mivalue_bits_bits = calc_log_bits(max_init_value_bits as usize);
+    let old_dpval = UDynVarSys::try_from_n(mobj.in_dpval.clone(), 1 << mivalue_bits_bits).unwrap();
     let old_addr_step_ext =
-        UDynVarSys::try_from_n(old_state.addr_step.clone(), value_bits_bits).unwrap();
+        UDynVarSys::try_from_n(old_state.addr_step.clone(), mivalue_bits_bits).unwrap();
     state_1.value = dynint_ite_r(
         &old_state.step_stage,
         &(&old_state.value
-            | &(old_dpval << (old_addr_step_ext * data_part_len_cut))
-                .subvalue(0, value_bits as usize)),
+            | &(old_dpval << (old_addr_step_ext * data_part_len)).subvalue(0, value_bits as usize)),
         &old_state.value,
     );
     state_1.unused = unused_value.clone();
