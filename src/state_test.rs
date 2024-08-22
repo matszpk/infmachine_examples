@@ -186,7 +186,6 @@ fn gen_state_test(
 fn gen_state_test_expmem(
     cell_len_bits: u32,
     proc_num: u64,
-    max_proc_num_bits: u32,
     value_bits: u32,
     iter_num: u64,
     path: impl AsRef<Path>,
@@ -196,11 +195,6 @@ fn gen_state_test_expmem(
         1 << (cell_len_bits - 3)
     } else {
         1
-    };
-    let cells_in_byte = if cell_len_bits < 3 {
-        1 << (3 - cell_len_bits)
-    } else {
-        0
     };
     let proc_cell_mask = if cell_len_bits < 3 {
         (1 << (3 - cell_len_bits)) - 1
@@ -215,11 +209,11 @@ fn gen_state_test_expmem(
 
     for i in 0..proc_num {
         let mut value = (i as u128) & value_mask;
-        for j in 0..iter_num {
+        for _ in 0..iter_num {
             value = (value + (0x11aabcdu128 & value_mask)) * (value + (0xfa2135u128 & value_mask));
         }
         let out = if cell_len < value_bits as usize {
-            value >> (cell_len - value_bits as usize)
+            value >> (value_bits as usize - cell_len)
         } else {
             value
         };
@@ -276,15 +270,7 @@ fn main() {
         // expected memory
         "expmem" => {
             let path = args.next().unwrap();
-            gen_state_test_expmem(
-                cell_len_bits,
-                proc_num,
-                max_proc_num_bits,
-                value_bits,
-                iter_num,
-                path,
-            )
-            .unwrap()
+            gen_state_test_expmem(cell_len_bits, proc_num, value_bits, iter_num, path).unwrap()
         }
         _ => {
             panic!("Unknown command");
