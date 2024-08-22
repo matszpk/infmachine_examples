@@ -183,6 +183,7 @@ fn gen_state_test(
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
+    let command = args.next().unwrap();
     let cell_len_bits: u32 = args.next().unwrap().parse().unwrap();
     let data_part_len: u32 = args.next().unwrap().parse().unwrap();
     let proc_num: u64 = args.next().unwrap().parse().unwrap();
@@ -198,16 +199,25 @@ fn main() {
     assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
     assert_ne!(value_bits, 0);
     assert_ne!(iter_num, 0);
-    print!(
-        "{}",
-        callsys(|| gen_state_test(
-            cell_len_bits,
-            data_part_len,
-            proc_num,
-            max_proc_num_bits,
-            value_bits,
-            iter_num,
-        )
-        .unwrap())
-    );
+    match command.as_str() {
+        "machine" => {
+            print!(
+                "{}",
+                callsys(|| gen_state_test(
+                    cell_len_bits,
+                    data_part_len,
+                    proc_num,
+                    max_proc_num_bits,
+                    value_bits,
+                    iter_num,
+                )
+                .unwrap())
+            );
+        }
+        // expected memory
+        "expmem" => {}
+        _ => {
+            panic!("Unknown command");
+        }
+    }
 }
