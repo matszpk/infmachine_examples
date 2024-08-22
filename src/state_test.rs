@@ -29,6 +29,7 @@ struct StateTestState {
     main_stage: U2VarSys,
     addr_step: UDynVarSys,
     step_stage: BoolVarSys,
+    unused: BoolVarSys,
     value: UDynVarSys,
     iter_count: UDynVarSys,
     addr_step_num: usize,
@@ -42,43 +43,19 @@ impl StateTestState {
             main_stage: U2VarSys::var(),
             addr_step: UDynVarSys::var(calc_log_bits(addr_step_num)),
             step_stage: BoolVarSys::var(),
+            unused: BoolVarSys::var(),
             value: UDynVarSys::var(value_bits as usize),
             iter_count: UDynVarSys::var(calc_log_bits_u64(iter_num)),
             addr_step_num,
         }
     }
 
-    fn len(&self) -> usize {
-        2 + self.addr_step.bitnum() + 1 + self.value.bitnum() + self.iter_count.bitnum()
-    }
-
     fn to_dynintvar(self) -> UDynVarSys {
         UDynVarSys::from(self.main_stage)
             .concat(self.addr_step)
-            .concat(UDynVarSys::from_iter([self.step_stage]))
+            .concat(UDynVarSys::from_iter([self.step_stage, self.unused]))
             .concat(self.value)
             .concat(self.iter_count)
-    }
-
-    fn from_dynintvar(&self, state: UDynVarSys) -> Self {
-        let vars = state.subvalues(
-            0,
-            [
-                2,
-                self.addr_step.bitnum(),
-                1,
-                self.value.bitnum(),
-                self.iter_count.bitnum(),
-            ],
-        );
-        Self {
-            main_stage: U2VarSys::try_from(vars[0].clone()).unwrap(),
-            addr_step: vars[1].clone(),
-            step_stage: vars[2].bit(0),
-            value: vars[3].clone(),
-            iter_count: vars[4].clone(),
-            addr_step_num: self.addr_step_num,
-        }
     }
 }
 
@@ -109,6 +86,13 @@ fn gen_state_test(
     let addr_step_max =
         UDynVarSys::from_n(old_state.addr_step_num - 1, old_state.addr_step.bitnum());
     let iter_max = UDynVarSys::from_n(iter_num - 1, old_state.iter_count.bitnum());
+
+    let unused_value = &old_state.unused
+        | &mobj.in_dp_move_done
+        | mobj
+            .in_memval
+            .iter()
+            .fold(BoolVarSys::from(false), |a, x| a.clone() | x.clone());
     // 1. Load proc id to mem_address and to value
     let mut state_1 = old_state.clone();
     state_1.main_stage = int_ite(
@@ -123,13 +107,19 @@ fn gen_state_test(
     );
     state_1.step_stage = !&old_state.step_stage;
     // store proc id into state.value in given position.
+    let value_bits_bits = calc_log_bits(value_bits as usize);
+    let old_dpval = UDynVarSys::try_from_n(mobj.in_dpval.clone(), 1 << value_bits_bits).unwrap();
+    let data_part_len_cut = data_part_len & ((1 << value_bits_bits) - 1);
+    let old_addr_step_ext =
+        UDynVarSys::try_from_n(old_state.addr_step.clone(), value_bits_bits).unwrap();
     state_1.value = dynint_ite_r(
         &old_state.step_stage,
-        &(&state_1.value
-            | (UDynVarSys::try_from_n(mobj.in_dpval.clone(), value_bits as usize).unwrap()
-                << (&old_state.addr_step * data_part_len))),
-        &state_1.value,
+        &(&old_state.value
+            | &(old_dpval << (old_addr_step_ext * data_part_len_cut))
+                .subvalue(0, value_bits as usize)),
+        &old_state.value,
     );
+    state_1.unused = unused_value.clone();
     let mut mach_out_1 = InfParOutputSys::new(config);
     mach_out_1.state = state_1.to_dynintvar();
     mach_out_1.dpr = !&old_state.step_stage;
@@ -141,6 +131,7 @@ fn gen_state_test(
         U2VarSys::from(DKIND_PROC_ID),
     );
     mach_out_1.dpmove = DPMOVE_FORWARD.into();
+
     // 2. Do calculations
     let mut state_2 = old_state.clone();
     state_2.main_stage = int_ite(
@@ -156,12 +147,16 @@ fn gen_state_test(
     };
     state_2.value = (&old_state.value + (0x11aabcdu32 & value_mask))
         * (&old_state.value + (0xfa2135u32 & value_mask));
+    state_2.unused = unused_value.clone();
     let mut mach_out_2 = InfParOutputSys::new(config);
     mach_out_2.state = state_2.to_dynintvar();
+
     // 3. Do write highest part of value to memory
     let mut state_3 = old_state.clone();
     state_3.main_stage = U2VarSys::from(2u32);
+    state_3.unused = unused_value.clone();
     let mut mach_out_3 = InfParOutputSys::new(config);
+    mach_out_3.state = state_3.to_dynintvar();
     mach_out_3.memw = BoolVarSys::from(true);
     mach_out_3.memval = if cell_len < value_bits as usize {
         old_state
