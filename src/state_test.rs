@@ -52,7 +52,7 @@ impl StateTestState {
         2 + self.addr_step.bitnum() + 1 + self.value.bitnum() + self.iter_count.bitnum()
     }
 
-    fn to_dyntintvar(self) -> UDynVarSys {
+    fn to_dynintvar(self) -> UDynVarSys {
         UDynVarSys::from(self.main_stage)
             .concat(self.addr_step)
             .concat(UDynVarSys::from_iter([self.step_stage]))
@@ -104,6 +104,7 @@ fn gen_state_test(
         },
     );
 
+    let cell_len = 1 << cell_len_bits;
     let old_state = StateTestState::new(data_part_len, max_proc_num_bits, value_bits, iter_num);
     let addr_step_max =
         UDynVarSys::from_n(old_state.addr_step_num - 1, old_state.addr_step.bitnum());
@@ -130,7 +131,7 @@ fn gen_state_test(
         &state_1.value,
     );
     let mut mach_out_1 = InfParOutputSys::new(config);
-    mach_out_1.state = state_1.to_dyntintvar();
+    mach_out_1.state = state_1.to_dynintvar();
     mach_out_1.dpr = !&old_state.step_stage;
     mach_out_1.dpw = old_state.step_stage.clone();
     mach_out_1.dpval = mobj.in_dpval.clone();
@@ -155,7 +156,32 @@ fn gen_state_test(
     };
     state_2.value = (&old_state.value + (0x11aabcdu32 & value_mask))
         * (&old_state.value + (0xfa2135u32 & value_mask));
-    // 3. Do write lowest part of value to memory
+    let mut mach_out_2 = InfParOutputSys::new(config);
+    mach_out_2.state = state_2.to_dynintvar();
+    // 3. Do write highest part of value to memory
+    let mut state_3 = old_state.clone();
+    state_3.main_stage = U2VarSys::from(2u32);
+    let mut mach_out_3 = InfParOutputSys::new(config);
+    mach_out_3.memw = BoolVarSys::from(true);
+    mach_out_3.memval = if cell_len < value_bits as usize {
+        old_state
+            .value
+            .clone()
+            .subvalue((value_bits as usize) - cell_len, cell_len)
+    } else {
+        UDynVarSys::try_from_n(old_state.value.clone(), cell_len).unwrap()
+    };
+    mach_out_3.stop = BoolVarSys::from(true);
+
+    // join
+    let final_state = dynint_table(
+        UDynVarSys::from(old_state.main_stage.clone()),
+        [mach_out_1, mach_out_2, mach_out_3.clone(), mach_out_3]
+            .into_iter()
+            .map(|v| v.to_dynintvar()),
+    );
+    mobj.in_state = Some(old_state.to_dynintvar());
+    mobj.from_dynintvar(final_state);
     mobj.to_machine().to_toml()
 }
 
