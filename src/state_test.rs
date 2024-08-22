@@ -231,7 +231,7 @@ fn gen_state_test_expmem(
         if cell_len_bits >= 3 {
             file.write(&bytes[0..cell_len_in_bytes])?;
         } else {
-            cell |= u8::try_from((value & cell_mask) << ((i & proc_cell_mask) << cell_len_bits))
+            cell |= u8::try_from((bytes[0] & cell_mask) << ((i & proc_cell_mask) << cell_len_bits))
                 .unwrap();
             if (i & proc_cell_mask) == proc_cell_mask {
                 // do write
