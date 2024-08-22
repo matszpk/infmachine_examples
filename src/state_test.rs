@@ -149,7 +149,7 @@ fn gen_state_test(
     );
     state_2.iter_count = &old_state.iter_count + 1u8;
     let value_mask = if value_bits < 32 {
-        1u32 << value_bits
+        (1u32 << value_bits) - 1u32
     } else {
         u32::MAX
     };
