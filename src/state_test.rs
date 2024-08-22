@@ -148,7 +148,13 @@ fn gen_state_test(
         U2VarSys::from(1u32),
     );
     state_2.iter_count = &old_state.iter_count + 1u8;
-    state_2.value = (&old_state.value + 0x11aabcdu32) * (&old_state.value + 0xfa2135u32);
+    let value_mask = if value_bits < 32 {
+        1u32 << value_bits
+    } else {
+        u32::MAX
+    };
+    state_2.value = (&old_state.value + (0x11aabcdu32 & value_mask))
+        * (&old_state.value + (0xfa2135u32 & value_mask));
     // 3. Do write lowest part of value to memory
     mobj.to_machine().to_toml()
 }
