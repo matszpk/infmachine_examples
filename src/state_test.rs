@@ -148,8 +148,9 @@ fn gen_state_test(
     } else {
         u32::MAX
     };
-    state_2.value = (&old_state.value + (0x11aabcdu32 & value_mask))
-        * (&old_state.value + (0xfa2135u32 & value_mask));
+    state_2.value = ((&old_state.value + (0x11aabcdu32 & value_mask))
+        * (&old_state.value + (0xfa2135u32 & value_mask)))
+        + (0x1a3521a9u32 & value_mask);
     state_2.unused = unused_value.clone();
     let mut mach_out_2 = InfParOutputSys::new(config);
     mach_out_2.state = state_2.to_dynintvar();
@@ -210,7 +211,8 @@ fn gen_state_test_expmem(
     for i in 0..proc_num {
         let mut value = (i as u128) & value_mask;
         for _ in 0..iter_num {
-            value = (value + (0x11aabcdu128 & value_mask)) * (value + (0xfa2135u128 & value_mask));
+            value = (value + (0x11aabcdu128 & value_mask)) * (value + (0xfa2135u128 & value_mask))
+                + (0x1a3521a9u128 & value_mask);
         }
         let out = if cell_len < value_bits as usize {
             value >> (value_bits as usize - cell_len)
@@ -251,7 +253,7 @@ fn main() {
     assert!(max_proc_num_bits <= 64);
     assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
     assert_ne!(value_bits, 0);
-    assert_ne!(iter_num, 0);
+    assert!(iter_num >= 2);
     match command.as_str() {
         "machine" => {
             print!(
