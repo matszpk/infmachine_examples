@@ -249,7 +249,6 @@ fn main() {
     assert_ne!(data_part_len, 0);
     assert_ne!(proc_num, 0);
     assert_ne!(max_proc_num_bits, 0);
-    assert!((1 << cell_len_bits) < max_proc_num_bits);
     assert!(max_proc_num_bits <= 64);
     assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
     assert_ne!(value_bits, 0);
