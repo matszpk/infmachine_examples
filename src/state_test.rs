@@ -116,10 +116,18 @@ fn gen_state_test(
     let old_dpval = UDynVarSys::try_from_n(mobj.in_dpval.clone(), 1 << mivalue_bits_bits).unwrap();
     let old_addr_step_ext =
         UDynVarSys::try_from_n(old_state.addr_step.clone(), mivalue_bits_bits).unwrap();
+    let shifted_dpval = if value_bits as usize <= old_dpval.bitnum() {
+        (old_dpval << (old_addr_step_ext * data_part_len)).subvalue(0, value_bits as usize)
+    } else {
+        UDynVarSys::try_from_n(
+            old_dpval << (old_addr_step_ext * data_part_len),
+            value_bits as usize,
+        )
+        .unwrap()
+    };
     state_1.value = dynint_ite_r(
         &old_state.step_stage,
-        &(&old_state.value
-            | &(old_dpval << (old_addr_step_ext * data_part_len)).subvalue(0, value_bits as usize)),
+        &(&old_state.value | &shifted_dpval),
         &old_state.value,
     );
     state_1.unused = unused_value.clone();
