@@ -5,6 +5,9 @@ use infmachine_config::*;
 use infmachine_gen::*;
 
 use std::env;
+use std::fs;
+use std::io::{self, BufWriter, Write};
+use std::path::Path;
 
 const fn calc_log_bits(n: usize) -> usize {
     let nbits = usize::BITS - n.leading_zeros();
@@ -180,6 +183,62 @@ fn gen_state_test(
     mobj.to_machine().to_toml()
 }
 
+fn gen_state_test_expmem(
+    cell_len_bits: u32,
+    proc_num: u64,
+    max_proc_num_bits: u32,
+    value_bits: u32,
+    iter_num: u64,
+    path: impl AsRef<Path>,
+) -> io::Result<()> {
+    let cell_len = 1 << cell_len_bits;
+    let cell_len_in_bytes = if cell_len_bits >= 3 {
+        1 << (cell_len_bits - 3)
+    } else {
+        1
+    };
+    let cells_in_byte = if cell_len_bits < 3 {
+        1 << (3 - cell_len_bits)
+    } else {
+        0
+    };
+    let proc_cell_mask = if cell_len_bits < 3 {
+        (1 << (3 - cell_len_bits)) - 1
+    } else {
+        0
+    };
+    let cell_mask = (1 << cell_len) - 1;
+    let mut cell = 0u8;
+
+    let mut file = BufWriter::new(fs::File::create(path)?);
+    let value_mask = (1u128 << value_bits) - 1;
+
+    for i in 0..proc_num {
+        let mut value = (i as u128) & value_mask;
+        for j in 0..iter_num {
+            value = (value + (0x11aabcdu128 & value_mask)) * (value + (0xfa2135u128 & value_mask));
+        }
+        let out = if cell_len < value_bits as usize {
+            value >> (cell_len - value_bits as usize)
+        } else {
+            value
+        };
+        let bytes = out.to_le_bytes();
+        if cell_len_bits >= 3 {
+            file.write(&bytes[0..cell_len_in_bytes])?;
+        } else {
+            cell |= u8::try_from((value & cell_mask) << ((i & proc_cell_mask) << cell_len_bits))
+                .unwrap();
+            if (i & proc_cell_mask) == proc_cell_mask {
+                // do write
+                file.write(&[cell][0..1])?;
+                cell = 0;
+            }
+        };
+    }
+    Ok(())
+}
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
@@ -215,7 +274,18 @@ fn main() {
             );
         }
         // expected memory
-        "expmem" => {}
+        "expmem" => {
+            let path = args.next().unwrap();
+            gen_state_test_expmem(
+                cell_len_bits,
+                proc_num,
+                max_proc_num_bits,
+                value_bits,
+                iter_num,
+                path,
+            )
+            .unwrap()
+        }
         _ => {
             panic!("Unknown command");
         }
