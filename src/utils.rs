@@ -27,12 +27,8 @@ use infmachine_gen::*;
 
 // InitMemAddressEndPosState - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
-// At memory address 0: sequences of MAX (1<<cell_len) value cells and cell with value
-// equal to 0 value. Special case is two zeroes: then MemAddressPosEndPos is 1.
-// MemAddressPosEndPos is sum of all these cells plus number of these cells minus 1.
-// Example: [3, 3, 3, 2, 0] - MemAddressPosEndPos is 15. [2, 0] - MemAddressPosEndPos is 3.
-// Example: [3, 3, 3, 0] - MemAddressPosEndPos is 12. [1, 0] - MemAddressPosEndPos is 2.
-// Special case: [0, 0] - MemAddressPosEndPos is 1.
+// At memory address 0: sequences of values between 1..=MAX and one zero,
+// MemAddressPosEndPos is sum of non-zero cells.
 // If cell_len=1 then: sequences of 1 and one zero. MemAddressPosEndPos is number of 1's.
 
 #[derive(Clone)]
