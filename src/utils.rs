@@ -7,7 +7,7 @@ use infmachine_gen::*;
 // Utilities for machine.
 // General utitities for machine creation. Utilities designed to be generic and usable
 // on machine with any value of parameters - cell_len_bits and data_part_len, proc_num...
-// possible smallest cell_len_bits is 1 (cell_len=2), possible smallest data_part_len is 2.
+// possible smallest cell_len_bits is 0 (cell_len=1), possible smallest data_part_len is 1.
 //
 // Basic utilities:
 // * load and determine max position at proc_id.
@@ -28,10 +28,11 @@ use infmachine_gen::*;
 // InitMemAddressEndPosState - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
 // At memory address 0: sequences of MAX (1<<cell_len) value cells and cell with value
-// equal to 0 value.
+// equal to 0 value. Special case is two zeroes: then MemAddressPosEndPos is 1.
 // MemAddressPosEndPos is sum of all these cells plus number of these cells minus 1.
 // Example: [3, 3, 3, 2, 0] - MemAddressPosEndPos is 15. [2, 0] - MemAddressPosEndPos is 3.
 // Example: [3, 3, 3, 0] - MemAddressPosEndPos is 12. [1, 0] - MemAddressPosEndPos is 2.
+// Special case: [0, 0] - MemAddressPosEndPos is 1.
 
 #[derive(Clone)]
 pub struct InitMemAddressEndPosStage {
