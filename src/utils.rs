@@ -28,7 +28,7 @@ use infmachine_gen::*;
 // InitMemAddressEndPosState - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
 // At memory address 0: sequences of MAX (1<<cell_len) value cells and cell with value
-// less than MAX value.
+// less than MAX-1 value.
 // MemAddressPosEndPos is sum of all these cells plus number of these cells.
 // Example: [3, 3, 3, 2] - MemAddressPosEndPos is 15.
 
