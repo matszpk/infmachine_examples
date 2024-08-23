@@ -55,11 +55,23 @@ pub fn extend_output_state(
 // MemAddressPosEndPos is sum of non-zero cells.
 // If cell_len=1 then: sequences of 1 and one zero. MemAddressPosEndPos is number of 1's.
 
+// function form: f(output_state, UDynVarSys, state_start: usize, in_output: &InfParOutputSys)
+//                -> (UDynVarSys, InfParOutputSys)
+// arguments:
+// output_state - output_state of state_start length that choose this stage
+// state_start - start position of output state where start output state of this stage.
+// in_output - InfParOutput with input state and default circuit outputs.
+// return:
+// (input_full_state, output):
+//   input_full_state - full input state with input state for this stage.
+//   output - output InfParOutputSys
+
 pub fn init_mem_address_end_pos_stage(
+    output_state: UDynVarSys,
     state_start: usize,
-    output: &InfParOutputSys,
+    in_output: &InfParOutputSys,
 ) -> (UDynVarSys, InfParOutputSys) {
-    (extend_output_state(state_start, 4, output), output.clone())
+    (extend_output_state(state_start, 4, in_output), in_output.clone())
 }
 
 // init_proc_id_end_pos - initialize proc id end position from memory.
@@ -67,8 +79,9 @@ pub fn init_mem_address_end_pos_stage(
 // after MemAddressEndPos in memory.
 
 pub fn init_proc_id_end_pos_stage(
+    output_state: UDynVarSys,
     state_start: usize,
-    output: &InfParOutputSys,
+    in_output: &InfParOutputSys,
 ) -> (UDynVarSys, InfParOutputSys) {
-    (extend_output_state(state_start, 4, output), output.clone())
+    (extend_output_state(state_start, 4, in_output), in_output.clone())
 }
