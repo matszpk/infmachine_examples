@@ -69,6 +69,7 @@ fn gen_state_test(
     max_proc_num_bits: u32,
     value_bits: u32,
     iter_num: u64,
+    int_iter_num: u64,
 ) -> Result<String, toml::ser::Error> {
     let config = InfParInterfaceConfig {
         cell_len_bits,
@@ -156,9 +157,12 @@ fn gen_state_test(
     } else {
         u32::MAX
     };
-    state_2.value = ((&old_state.value + (0x11aabcdu32 & value_mask))
-        * (&old_state.value + (0xfa2135u32 & value_mask)))
-        ^ &old_state.value;
+    state_2.value = old_state.value.clone();
+    for _ in 0..int_iter_num {
+        state_2.value = ((&state_2.value + (0x11aabcdu32 & value_mask))
+            * (&state_2.value + (0xfa2135u32 & value_mask)))
+            ^ &state_2.value;
+    }
     state_2.unused = unused_value.clone();
     let mut mach_out_2 = InfParOutputSys::new(config);
     mach_out_2.state = state_2.to_dynintvar();
@@ -197,6 +201,7 @@ fn gen_state_test_expmem(
     proc_num: u64,
     value_bits: u32,
     iter_num: u64,
+    int_iter_num: u64,
     path: impl AsRef<Path>,
 ) -> io::Result<()> {
     let cell_len = 1 << cell_len_bits;
@@ -219,8 +224,11 @@ fn gen_state_test_expmem(
     for i in 0..proc_num {
         let mut value = (i as u128) & value_mask;
         for _ in 0..iter_num {
-            value = (value + (0x11aabcdu128 & value_mask)) * (value + (0xfa2135u128 & value_mask))
-                ^ value;
+            for _ in 0..int_iter_num {
+                value = (value + (0x11aabcdu128 & value_mask))
+                    * (value + (0xfa2135u128 & value_mask))
+                    ^ value;
+            }
         }
         let out = if cell_len < value_bits as usize {
             value >> (value_bits as usize - cell_len)
@@ -253,6 +261,7 @@ fn main() {
     let max_proc_num_bits: u32 = args.next().unwrap().parse().unwrap();
     let value_bits: u32 = args.next().unwrap().parse().unwrap();
     let iter_num: u64 = args.next().unwrap().parse().unwrap();
+    let int_iter_num: u64 = args.next().unwrap().parse().unwrap();
     assert!(cell_len_bits <= 16);
     assert_ne!(data_part_len, 0);
     assert_ne!(proc_num, 0);
@@ -261,6 +270,7 @@ fn main() {
     assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
     assert_ne!(value_bits, 0);
     assert!(iter_num >= 2);
+    assert!(int_iter_num >= 1);
     match command.as_str() {
         "machine" => {
             print!(
@@ -272,6 +282,7 @@ fn main() {
                     max_proc_num_bits,
                     value_bits,
                     iter_num,
+                    int_iter_num,
                 )
                 .unwrap())
             );
@@ -279,7 +290,15 @@ fn main() {
         // expected memory
         "expmem" => {
             let path = args.next().unwrap();
-            gen_state_test_expmem(cell_len_bits, proc_num, value_bits, iter_num, path).unwrap()
+            gen_state_test_expmem(
+                cell_len_bits,
+                proc_num,
+                value_bits,
+                iter_num,
+                int_iter_num,
+                path,
+            )
+            .unwrap()
         }
         _ => {
             panic!("Unknown command");
