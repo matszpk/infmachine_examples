@@ -33,6 +33,7 @@ use infmachine_gen::*;
 // Example: [3, 3, 3, 2, 0] - MemAddressPosEndPos is 15. [2, 0] - MemAddressPosEndPos is 3.
 // Example: [3, 3, 3, 0] - MemAddressPosEndPos is 12. [1, 0] - MemAddressPosEndPos is 2.
 // Special case: [0, 0] - MemAddressPosEndPos is 1.
+// If cell_len=1 then: sequences of 1 and one zero. MemAddressPosEndPos is number of 1's.
 
 #[derive(Clone)]
 pub struct InitMemAddressEndPosStage {
