@@ -31,6 +31,15 @@ use infmachine_gen::*;
 // MemAddressPosEndPos is sum of non-zero cells.
 // If cell_len=1 then: sequences of 1 and one zero. MemAddressPosEndPos is number of 1's.
 
+const fn calc_log_bits(n: usize) -> usize {
+    let nbits = usize::BITS - n.leading_zeros();
+    if (1 << (nbits - 1)) == n {
+        (nbits - 1) as usize
+    } else {
+        nbits as usize
+    }
+}
+
 #[derive(Clone)]
 pub struct InitMemAddressEndPosStage {
     stage: UDynVarSys,   // stage indicator
@@ -39,12 +48,8 @@ pub struct InitMemAddressEndPosStage {
 }
 
 impl InitMemAddressEndPosStage {
-    pub fn new(cell_len_bits: usize, data_part_len: usize, stage_len: usize) -> Self {
-        Self {
-            stage: UDynVarSys::var(stage_len),
-            int_stage: U3VarSys::var(),
-            state: U2VarSys::var(),
-        }
+    pub fn new(output: &InfParOutputSys) -> InfParOutputSys {
+        output.clone()
     }
 }
 
@@ -60,11 +65,7 @@ pub struct InitProcIdEndPosStage {
 }
 
 impl InitProcIdEndPosStage {
-    pub fn new(stage_len: usize) -> Self {
-        Self {
-            stage: UDynVarSys::var(stage_len),
-            int_stage: U3VarSys::var(),
-            state: U2VarSys::var(),
-        }
+    pub fn new(output: &InfParOutputSys) -> InfParOutputSys {
+        output.clone()
     }
 }
