@@ -9,6 +9,8 @@ use std::fs;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
 
+mod utils;
+
 const fn calc_log_bits(n: usize) -> usize {
     let nbits = usize::BITS - n.leading_zeros();
     if (1 << (nbits - 1)) == n {
