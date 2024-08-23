@@ -7,7 +7,7 @@ use infmachine_gen::*;
 // Utilities for machine.
 // General utitities for machine creation. Utilities designed to be generic and usable
 // on machine with any value of parameters - cell_len_bits and data_part_len, proc_num...
-// 
+//
 // Basic utilities:
 // * load and determine max position at proc_id.
 // * move back to start position in any data.
@@ -21,37 +21,46 @@ use infmachine_gen::*;
 // ENDx - mark last number part if value is not zero.
 // Form: configurable circuit stage with specified part of stage indicator.
 //       [STAGE_INDICATOR, STAGE_STATE, UNUSED]
+// END_DP_FORM: [NP0_0, NP0_1, .., NP0_T, END0, NP1_0, NP1_1, .., NP1_T, END1, .....].
+// T - (data_part_len + cell_len - 1) / cell_len.  Number of required cells to store data part.
 
-// Algorithm to process number from memory start:
-// 1. Load (NPx) number part from memory. Process with storing internal state.
-// 2. Increase memory address without moving to start memory addres position.
-// 3. Load (ENDx) end indicator from memory.
-// 4. If ENDx is not zero:
-// 4.1. End algorithm.
-// 5. Move memory
-
-// InitProcIdPosState - initialize proc id position from memory.
-// Format in memory: start address is 0 in ENDFORM.
-// Form of temp buffer: [PROC_ID_POS_LEN0, END0, PROC_ID_POS_LEN1, END1, ....]
-//      ENDx - if not zero then mark end of temp buffer.
-//      PROC_ID_POS_LEN0 - length of proc id position number.
-// Algorithm:
-// 1. Decrease number ENDFORM in memory address 0 and set memory address to 0.
-//    Store information whether is zero to if_zero stage field.
-// 2. Move temp buffer position forward.
-// 3. If if_zero is true then:
-// 3.1. Store 1 to current temp buffer part (at current temp buffer position).
-// 3.2. End.
-// 4. Otherwise go to 1.
+// InitMemAddressEndPosState - initialize memory address end position from memory.
+// Information about MemAddressEndPos in memory:
+// At memory address 0: sequences of zero cells and cell with value 1 under
+// memory address which is MemAddressPosEndPos value.
+// Example: [0, 0, 0, 0, 0, 1] - MemAddressPosEndPos is 5
 
 #[derive(Clone)]
-pub struct InitProcIdPosStage {
-    stage: UDynVarSys,  // stage indicator
+pub struct InitMemAddressEndPosStage {
+    stage: UDynVarSys,   // stage indicator
     int_stage: U3VarSys, // internal stage indicator - only for this stage.
-    state: U2VarSys,  // state for stage
+    state: U2VarSys,     // state for stage
 }
 
-impl InitProcIdPosStage {
+impl InitMemAddressEndPosStage {
+    pub fn new(cell_len_bits: usize, data_part_len: usize, stage_len: usize) -> Self {
+        Self {
+            stage: UDynVarSys::var(stage_len),
+            int_stage: U3VarSys::var(),
+            state: U2VarSys::var(),
+        }
+    }
+}
+
+// InitProcIdEndPosState - initialize proc id end position from memory.
+// Information about ProcIdEndPos in memory:
+// At memory address after first cell 1 in memory:
+// sequences of zero cells and cell with value 1 under memory address
+// which is ProcIdPosEndPos value.
+
+#[derive(Clone)]
+pub struct InitProcIdEndPosStage {
+    stage: UDynVarSys,   // stage indicator
+    int_stage: U3VarSys, // internal stage indicator - only for this stage.
+    state: U2VarSys,     // state for stage
+}
+
+impl InitProcIdEndPosStage {
     pub fn new(stage_len: usize) -> Self {
         Self {
             stage: UDynVarSys::var(stage_len),
