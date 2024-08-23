@@ -30,6 +30,7 @@ use infmachine_gen::*;
 // MemAddressPosEndPos is sum of non-zero cells.
 // Example: [3, 3, 3, 2, 0] - MemAddressPosEndPos is 11.
 // If cell length is smaller than 4 then use cell as 4 cell word as cell.
+// Smallest MemAddressEndPos is 2.
 
 #[derive(Clone)]
 pub struct InitMemAddressEndPosStage {
