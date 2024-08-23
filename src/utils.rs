@@ -26,9 +26,10 @@ use infmachine_gen::*;
 
 // InitMemAddressEndPosState - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
-// At memory address 0: sequences of zero cells and cell with value 1 under
-// memory address which is MemAddressPosEndPos value.
-// Example: [0, 0, 0, 0, 0, 1] - MemAddressPosEndPos is 5
+// At memory address 0: sequences of non-zero cells and cell with value 0.
+// MemAddressPosEndPos is sum of non-zero cells.
+// Example: [3, 3, 3, 2, 0] - MemAddressPosEndPos is 11.
+// If cell length is smaller than 4 then use cell as 4 cell word as cell.
 
 #[derive(Clone)]
 pub struct InitMemAddressEndPosStage {
@@ -48,10 +49,8 @@ impl InitMemAddressEndPosStage {
 }
 
 // InitProcIdEndPosState - initialize proc id end position from memory.
-// Information about ProcIdEndPos in memory:
-// At memory address after first cell 1 in memory:
-// sequences of zero cells and cell with value 1 under memory address
-// which is ProcIdPosEndPos value.
+// Information about ProcIdEndPos in memory: This same as in MemAddressEndPos and start
+// after MemAddressEndPos in memory.
 
 #[derive(Clone)]
 pub struct InitProcIdEndPosStage {
