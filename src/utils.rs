@@ -67,7 +67,9 @@ pub fn extend_output_state(
 //   output - output InfParOutputSys
 //   end condition - condition if stage ends
 
-pub fn increase_mem_address_stage(
+// sequential increase memory address stage -
+// sequential - only if all processors have this same memory address.
+pub fn seq_increase_mem_address_stage(
     output_state: UDynVarSys,
     state_start: usize,
     input: &InfParInputSys,
