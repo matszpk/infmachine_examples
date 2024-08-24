@@ -62,18 +62,69 @@ pub fn extend_output_state(
 // state_start - start position of output state where start output state of this stage.
 // input - InfParInput with input state and circuit inputs.
 // return:
-// (input_full_state, output):
+// (input_full_state, output, end condition):
 //   input_full_state - full input state with input state for this stage.
 //   output - output InfParOutputSys
+//   end condition - condition if stage ends
+
+pub fn increase_mem_address_stage(
+    output_state: UDynVarSys,
+    state_start: usize,
+    input: &InfParInputSys,
+) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    // 1. load data part from mem_address.
+    // 2. Increase data part value and store to mem_address.
+    // 3. If carry after increasing value then:
+    // 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
+    // 4. Otherwise Move mem_address_pos back.
+    // 5. If move done then go to 1.
+    let input_state = extend_output_state(state_start, 3 + input.dpval.bitnum(), input);
+    let (stage, value) = {
+        let parts = input_state
+            .clone()
+            .subvalues(state_start, [3, input.dpval.bitnum()]);
+        (
+            U3VarSys::try_from(parts[0].clone()).unwrap(),
+            parts[1].clone(),
+        )
+    };
+    let output_base = InfParOutputSys::new(input.config());
+    // Stage 0b000. 1. load data part from mem_address.
+    let out_stage_0 = U3VarSys::from(1u8);
+    let out_value_0 = UDynVarSys::from_n(0u8, input.dpval.bitnum());
+    let mut output_0 = output_base.clone();
+    output_0.state = output_state
+        .clone()
+        .concat(UDynVarSys::from(out_stage_0))
+        .concat(out_value_0);
+    // Stage 0b001. 2. Increase data part value and store to mem_address.
+    // Stage 0b010. 3. If carry after increasing value then:
+    // Stage 0b011. 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
+    // Stage 0b100. 4. Otherwise Move mem_address_pos back.
+    // Stage 0b101. 5. If move done then go to 1.
+    (
+        extend_output_state(state_start, 4, input),
+        InfParOutputSys::new(input.config()),
+        true.into(),
+    )
+}
 
 pub fn init_mem_address_end_pos_stage(
     output_state: UDynVarSys,
     state_start: usize,
     input: &InfParInputSys,
-) -> (UDynVarSys, InfParOutputSys) {
+) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    // Stages:
+    // 1. Load cell from memory.
+    // 2. If cell==0 then end of algorithm.
+    // 3. If cell!=0 then increase temp_buffer_pos and decrease this value.
+    // 4. If cell==0 then increase memory_address and go to 1.
+    let input_state = extend_output_state(state_start, 4, input);
+    //let input_state.clone().subvalue(state_start,
     (
-        extend_output_state(state_start, 4, input),
+        input_state,
         InfParOutputSys::new(input.config()),
+        true.into(),
     )
 }
 
@@ -85,9 +136,10 @@ pub fn init_proc_id_end_pos_stage(
     output_state: UDynVarSys,
     state_start: usize,
     input: &InfParInputSys,
-) -> (UDynVarSys, InfParOutputSys) {
+) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
     (
         extend_output_state(state_start, 4, input),
         InfParOutputSys::new(input.config()),
+        true.into(),
     )
 }
