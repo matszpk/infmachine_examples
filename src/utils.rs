@@ -37,15 +37,22 @@ const fn calc_log_bits(n: usize) -> usize {
 pub fn extend_output_state(
     state_start: usize,
     extra_bits: usize,
-    output: &InfParOutputSys,
+    input: &InfParInputSys,
 ) -> UDynVarSys {
-    assert!(state_start <= output.state.bitnum());
-    if state_start + extra_bits > output.state.bitnum() {
-        output.state.clone().concat(UDynVarSys::var(
-            state_start + extra_bits - output.state.bitnum(),
+    assert!(state_start <= input.state.bitnum());
+    if state_start + extra_bits > input.state.bitnum() {
+        input.state.clone().concat(UDynVarSys::var(
+            state_start + extra_bits - input.state.bitnum(),
         ))
     } else {
-        output.state.clone()
+        input.state.clone()
+    }
+}
+
+fn interface_config_from_input(input: &InfParInputSys) -> InfParInterfaceConfig {
+    InfParInterfaceConfig {
+        cell_len_bits: u32::try_from(calc_log_bits(input.memval.bitnum())).unwrap(),
+        data_part_len: u32::try_from(input.dpval.bitnum()).unwrap(),
     }
 }
 
@@ -60,7 +67,7 @@ pub fn extend_output_state(
 // arguments:
 // output_state - output_state of state_start length that choose this stage
 // state_start - start position of output state where start output state of this stage.
-// in_output - InfParOutput with input state and default circuit outputs.
+// input - InfParInput with input state and circuit inputs.
 // return:
 // (input_full_state, output):
 //   input_full_state - full input state with input state for this stage.
@@ -69,9 +76,12 @@ pub fn extend_output_state(
 pub fn init_mem_address_end_pos_stage(
     output_state: UDynVarSys,
     state_start: usize,
-    in_output: &InfParOutputSys,
+    input: &InfParInputSys,
 ) -> (UDynVarSys, InfParOutputSys) {
-    (extend_output_state(state_start, 4, in_output), in_output.clone())
+    (
+        extend_output_state(state_start, 4, input),
+        InfParOutputSys::new(interface_config_from_input(input)),
+    )
 }
 
 // init_proc_id_end_pos - initialize proc id end position from memory.
@@ -81,7 +91,10 @@ pub fn init_mem_address_end_pos_stage(
 pub fn init_proc_id_end_pos_stage(
     output_state: UDynVarSys,
     state_start: usize,
-    in_output: &InfParOutputSys,
+    input: &InfParInputSys,
 ) -> (UDynVarSys, InfParOutputSys) {
-    (extend_output_state(state_start, 4, in_output), in_output.clone())
+    (
+        extend_output_state(state_start, 4, input),
+        InfParOutputSys::new(interface_config_from_input(input)),
+    )
 }
