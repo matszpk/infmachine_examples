@@ -49,13 +49,6 @@ pub fn extend_output_state(
     }
 }
 
-fn interface_config_from_input(input: &InfParInputSys) -> InfParInterfaceConfig {
-    InfParInterfaceConfig {
-        cell_len_bits: u32::try_from(calc_log_bits(input.memval.bitnum())).unwrap(),
-        data_part_len: u32::try_from(input.dpval.bitnum()).unwrap(),
-    }
-}
-
 // init_mem_address_end_pos - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
 // At memory address 0: sequences of values between 1..=MAX and one zero,
@@ -80,7 +73,7 @@ pub fn init_mem_address_end_pos_stage(
 ) -> (UDynVarSys, InfParOutputSys) {
     (
         extend_output_state(state_start, 4, input),
-        InfParOutputSys::new(interface_config_from_input(input)),
+        InfParOutputSys::new(input.config()),
     )
 }
 
@@ -95,6 +88,6 @@ pub fn init_proc_id_end_pos_stage(
 ) -> (UDynVarSys, InfParOutputSys) {
     (
         extend_output_state(state_start, 4, input),
-        InfParOutputSys::new(interface_config_from_input(input)),
+        InfParOutputSys::new(input.config()),
     )
 }
