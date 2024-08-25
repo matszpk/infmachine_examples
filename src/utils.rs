@@ -114,10 +114,25 @@ pub fn move_data_pos_stage(
     let in_step = input_state.subvalue(state_start, step_num_bits);
     let end = (&in_step).equal(UDynVarSys::from_n(step_num - 1, step_num_bits));
     let mut output = InfParOutputSys::new(input.config());
-    output.state = &in_step + 1u8;
+    output.state = output_state.clone().concat(&in_step + 1u8);
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(dpmove);
     (input_state, output, end)
+}
+
+pub fn data_pos_to_start_stage(
+    output_state: UDynVarSys,
+    state_start: usize,
+    input: &InfParInputSys,
+    data_kind: u32,
+) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    let output_state = UDynVarSys::try_from_n(output_state, state_start).unwrap();
+    let end = !&input.dp_move_done;
+    let mut output = InfParOutputSys::new(input.config());
+    output.state = output_state;
+    output.dkind = U2VarSys::from(data_kind);
+    output.dpmove = U2VarSys::from(DPMOVE_BACKWARD);
+    (input.state.clone(), output, end)
 }
 
 // sequential increase memory address stage -
