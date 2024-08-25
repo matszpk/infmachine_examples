@@ -92,7 +92,7 @@ pub fn move_data_pos_stage(
     let step_num_bits = calc_log_bits_u64(step_num);
     let input_state = extend_output_state(state_start, step_num_bits, input);
     let in_step = input_state.subvalue(state_start, step_num_bits);
-    let end = (&in_step).less_equal(UDynVarSys::from_n(step_num - 1, step_num_bits));
+    let end = (&in_step).equal(UDynVarSys::from_n(step_num - 1, step_num_bits));
     let mut output = InfParOutputSys::new(input.config());
     output.state = &in_step + 1u8;
     output.dkind = U2VarSys::from(data_kind);
