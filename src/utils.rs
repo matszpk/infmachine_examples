@@ -34,6 +34,15 @@ const fn calc_log_bits(n: usize) -> usize {
     }
 }
 
+const fn calc_log_bits_u64(n: u64) -> usize {
+    let nbits = u64::BITS - n.leading_zeros();
+    if (1 << (nbits - 1)) == n {
+        (nbits - 1) as usize
+    } else {
+        nbits as usize
+    }
+}
+
 pub fn extend_output_state(
     state_start: usize,
     extra_bits: usize,
@@ -66,6 +75,35 @@ pub fn extend_output_state(
 //   input_full_state - full input state with input state for this stage.
 //   output - output InfParOutputSys
 //   end condition - condition if stage ends
+//
+// Stage behavior:
+// Initial state for stage is 0.
+// At last stage step all extra_bits including unused SHOULD BE be cleared.
+
+pub fn move_data_pos_stage(
+    output_state: UDynVarSys,
+    state_start: usize,
+    input: &InfParInputSys,
+    data_kind: u32,
+    dpmove: u32,
+    step_num: u64,
+) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    let output_state = UDynVarSys::try_from_n(output_state, state_start).unwrap();
+    let step_num_bits = calc_log_bits_u64(step_num);
+    let input_state = extend_output_state(state_start, step_num_bits, input);
+    let extra_bits = input_state.bitnum() - state_start;
+    let in_step = input_state.subvalue(state_start, step_num_bits);
+    let end = (&in_step).less_equal(UDynVarSys::from_n(step_num - 1, step_num_bits));
+    let mut output = InfParOutputSys::new(input.config());
+    output.state = output_state.clone().concat(dynint_ite(
+        !&end,
+        UDynVarSys::try_from_n(&in_step + 1u8, extra_bits).unwrap(),
+        UDynVarSys::from_n(0u8, extra_bits),
+    ));
+    output.dkind = U2VarSys::from(data_kind);
+    output.dpmove = U2VarSys::from(dpmove);
+    (input_state, output, end)
+}
 
 // sequential increase memory address stage -
 // sequential - only if all processors have this same memory address.
