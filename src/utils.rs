@@ -58,6 +58,26 @@ pub fn extend_output_state(
     }
 }
 
+pub fn join_stage(
+    next_state: UDynVarSys,
+    state_start: usize,
+    mut output: InfParOutputSys,
+    end: BoolVarSys,
+) -> InfParOutputSys {
+    let old_state = output.state.clone().subvalue(0, state_start);
+    let state_stage = output
+        .state
+        .clone()
+        .subvalue(state_start, output.state.bitnum());
+    let next_state = UDynVarSys::try_from_n(next_state, state_start).unwrap();
+    output.state = dynint_ite(
+        end.clone(),
+        next_state.concat(UDynVarSys::from_n(0u8, output.state.bitnum() - state_start)),
+        old_state.concat(state_stage),
+    );
+    output
+}
+
 // init_mem_address_end_pos - initialize memory address end position from memory.
 // Information about MemAddressEndPos in memory:
 // At memory address 0: sequences of values between 1..=MAX and one zero,
