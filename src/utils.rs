@@ -60,16 +60,15 @@ pub fn extend_output_state(
 
 pub fn join_stage(
     next_state: UDynVarSys,
-    state_start: usize,
     mut output: InfParOutputSys,
     end: BoolVarSys,
 ) -> InfParOutputSys {
+    let state_start = next_state.bitnum();
     let old_state = output.state.clone().subvalue(0, state_start);
     let state_stage = output
         .state
         .clone()
         .subvalue(state_start, output.state.bitnum());
-    let next_state = UDynVarSys::try_from_n(next_state, state_start).unwrap();
     output.state = dynint_ite(
         end.clone(),
         next_state.concat(UDynVarSys::from_n(0u8, output.state.bitnum() - state_start)),
@@ -88,7 +87,6 @@ pub fn join_stage(
 //                -> (UDynVarSys, InfParOutputSys)
 // arguments:
 // output_state - output_state of state_start length that choose this stage
-// state_start - start position of output state where start output state of this stage.
 // input - InfParInput with input state and circuit inputs.
 // return:
 // (input_full_state, output, end condition):
@@ -102,13 +100,12 @@ pub fn join_stage(
 
 pub fn move_data_pos_stage(
     output_state: UDynVarSys,
-    state_start: usize,
     input: &InfParInputSys,
     data_kind: u32,
     dpmove: u32,
     step_num: u64,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
-    let output_state = UDynVarSys::try_from_n(output_state, state_start).unwrap();
+    let state_start = output_state.bitnum();
     let step_num_bits = calc_log_bits_u64(step_num);
     let input_state = extend_output_state(state_start, step_num_bits, input);
     let in_step = input_state.subvalue(state_start, step_num_bits);
@@ -122,11 +119,9 @@ pub fn move_data_pos_stage(
 
 pub fn data_pos_to_start_stage(
     output_state: UDynVarSys,
-    state_start: usize,
     input: &InfParInputSys,
     data_kind: u32,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
-    let output_state = UDynVarSys::try_from_n(output_state, state_start).unwrap();
     let end = !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
     output.state = output_state;
@@ -139,9 +134,9 @@ pub fn data_pos_to_start_stage(
 // sequential - only if all processors have this same memory address.
 pub fn seq_increase_mem_address_stage(
     output_state: UDynVarSys,
-    state_start: usize,
     input: &InfParInputSys,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    let state_start = output_state.bitnum();
     // 1. load data part from mem_address.
     // 2. Increase data part value and store to mem_address.
     // 3. If carry after increasing value then:
@@ -181,9 +176,9 @@ pub fn seq_increase_mem_address_stage(
 
 pub fn init_mem_address_end_pos_stage(
     output_state: UDynVarSys,
-    state_start: usize,
     input: &InfParInputSys,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    let state_start = output_state.bitnum();
     // Stages:
     // 1. Load cell from memory.
     // 2. If cell==0 then end of algorithm.
@@ -204,9 +199,9 @@ pub fn init_mem_address_end_pos_stage(
 
 pub fn init_proc_id_end_pos_stage(
     output_state: UDynVarSys,
-    state_start: usize,
     input: &InfParInputSys,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
+    let state_start = output_state.bitnum();
     (
         extend_output_state(state_start, 4, input),
         InfParOutputSys::new(input.config()),
