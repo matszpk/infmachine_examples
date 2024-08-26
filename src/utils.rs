@@ -152,10 +152,12 @@ pub fn data_pos_to_start_stage(
     data_kind: u8,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
+    let state_start = output_state.bitnum();
+    extend_output_state(state_start, 1, input);
     let input: &_ = input;
-    let end = !&input.dp_move_done;
+    let end = input.state.bit(state_start) & !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
-    output.state = output_state;
+    output.state = output_state.concat(UDynVarSys::from_n(1u8, 1));
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(DPMOVE_BACKWARD);
     (join_stage(next_state, output, end.clone()), end)
