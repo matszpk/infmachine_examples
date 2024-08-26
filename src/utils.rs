@@ -207,7 +207,7 @@ pub fn seq_increase_mem_address_stage(
         input,
         DKIND_MEM_ADDRESS,
     );
-    let end = (&stage).equal(U2VarSys::from(3u8)) & end;
+    let end = (&stage).equal(U2VarSys::from(2u8)) & end;
     let mut output_stages = vec![output_0, output_1, output_2.clone(), output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
     let final_state = dynint_table(
