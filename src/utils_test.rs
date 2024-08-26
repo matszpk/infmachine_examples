@@ -78,6 +78,7 @@ fn main() {
     match stage.as_str() {
         "move_data_pos" => {
             let step_num: u64 = args.next().unwrap().parse().unwrap();
+            assert_ne!(step_num, 0);
             print!(
                 "{}",
                 callsys(|| gen_move_data_pos_test(
