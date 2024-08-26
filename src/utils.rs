@@ -170,17 +170,8 @@ pub fn seq_increase_mem_address_stage(
     // 3. If carry after increasing value then:
     // 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
     // 4. Otherwise Move mem_address_pos back.
-    extend_output_state(state_start, 2 + input.dpval.bitnum(), input);
-    let (stage, value) = {
-        let parts = input
-            .state
-            .clone()
-            .subvalues(state_start, [2, input.dpval.bitnum()]);
-        (
-            U2VarSys::try_from(parts[0].clone()).unwrap(),
-            parts[1].clone(),
-        )
-    };
+    extend_output_state(state_start, 2, input);
+    let stage = U2VarSys::try_from(input.state.clone()).unwrap();
     let output_base = InfParOutputSys::new(input.config());
     // Stage 0b00. 1. load data part from mem_address.
     let mut output_0 = output_base.clone();
@@ -193,14 +184,13 @@ pub fn seq_increase_mem_address_stage(
     // Stage 0b01. 3. If carry after increasing value then:
     // Stage 0b01. 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
     let mut output_1 = output_base.clone();
-    let (new_value, carry) = value.addc_with_carry(
+    let (new_value, carry) = input.dpval.addc_with_carry(
         &UDynVarSys::from_n(1u8, input.dpval.bitnum()),
         &false.into(),
     );
     output_1.state = output_state
         .clone()
-        .concat(int_ite(carry.clone(), U2VarSys::from(0u8), U2VarSys::from(2u8)).into())
-        .concat(new_value.clone());
+        .concat(int_ite(carry.clone(), U2VarSys::from(0u8), U2VarSys::from(2u8)).into());
     output_1.dpmove = int_ite(
         carry,
         U2VarSys::from(DPMOVE_FORWARD),
@@ -211,8 +201,7 @@ pub fn seq_increase_mem_address_stage(
     // Stage 0b10. 4. Otherwise Move mem_address_pos back.
     let output_state_2 = output_state
         .clone()
-        .concat(U2VarSys::from(2u8).into())
-        .concat(UDynVarSys::from_n(0u8, input.dpval.bitnum()));
+        .concat(U2VarSys::from(2u8).into());
     let (output_2, end) = data_pos_to_start_stage(
         output_state_2.clone(),
         output_state_2.clone(),
