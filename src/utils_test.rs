@@ -30,28 +30,35 @@ fn gen_move_data_pos_test(
             max_temp_buffer_len: temp_buffer_len,
         },
     );
+    mobj.in_state = Some(UDynVarSys::var(2));
+    let mach_input_state = mobj.in_state.clone().unwrap();
+    let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input_state.bit(1)));
     let mut mach_input = mobj.input();
-    mach_input.state = UDynVarSys::var(1);
     // first stage
     let (mach_input_state, output_1, end_1) = move_data_pos_stage(
-        UDynVarSys::from_n(0u8, 1),
+        UDynVarSys::from_n(0u8, 1).concat(unused_bit.clone()),
         &mach_input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
         step_num,
     );
-    let output_1 = join_stage(UDynVarSys::from_n(0u8, 1), output_1, end_1);
+    let output_1 = join_stage(
+        UDynVarSys::from_n(1u8, 1).concat(unused_bit.clone()),
+        output_1,
+        end_1,
+    );
     // stop stage
     let mut output_2 = InfParOutputSys::new(config);
-    output_2.state = UDynVarSys::from_n(1u8, 1);
+    output_2.state = UDynVarSys::from_n(1u8, 1).concat(unused_bit.clone());
     output_2.stop = true.into();
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
     let final_state = dynint_table(
-        mach_input_state.clone(),
+        mach_input_state.clone().subvalue(0, 1),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
     mobj.in_state = Some(mach_input_state);
+    mobj.from_dynintvar(final_state);
     mobj.to_machine().to_toml()
 }
 

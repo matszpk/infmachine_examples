@@ -58,6 +58,20 @@ pub fn extend_output_state(
     }
 }
 
+// return 1 bit state to handle unused bits
+pub fn unused_inputs(mobj: &InfParMachineObjectSys, input_state: BoolVarSys) -> BoolVarSys {
+    &input_state
+        | mobj
+            .in_memval
+            .iter()
+            .fold(BoolVarSys::from(false), |a, x| a.clone() | x.clone())
+        | mobj
+            .in_dpval
+            .iter()
+            .fold(BoolVarSys::from(false), |a, x| a.clone() | x.clone())
+        | mobj.in_dp_move_done.clone()
+}
+
 pub fn join_stage(
     next_state: UDynVarSys,
     mut output: InfParOutputSys,
@@ -65,16 +79,21 @@ pub fn join_stage(
 ) -> InfParOutputSys {
     let state_start = next_state.bitnum();
     let old_state = output.state.clone().subvalue(0, state_start);
-    let state_stage = output
-        .state
-        .clone()
-        .subvalue(state_start, output.state.bitnum());
-    output.state = dynint_ite(
-        end.clone(),
-        next_state.concat(UDynVarSys::from_n(0u8, output.state.bitnum() - state_start)),
-        old_state.concat(state_stage),
-    );
-    output
+    if output.state.bitnum() != state_start {
+        let state_stage = output
+            .state
+            .clone()
+            .subvalue(state_start, output.state.bitnum() - state_start);
+        output.state = dynint_ite(
+            end.clone(),
+            next_state.concat(UDynVarSys::from_n(0u8, output.state.bitnum() - state_start)),
+            old_state.concat(state_stage),
+        );
+        output
+    } else {
+        output.state = dynint_ite(end.clone(), next_state, old_state);
+        output
+    }
 }
 
 // init_mem_address_end_pos - initialize memory address end position from memory.
