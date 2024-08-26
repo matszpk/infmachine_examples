@@ -170,7 +170,6 @@ pub fn seq_increase_mem_address_stage(
     // 3. If carry after increasing value then:
     // 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
     // 4. Otherwise Move mem_address_pos back.
-    // 5. If move done then go to 1.
     extend_output_state(state_start, 2 + input.dpval.bitnum(), input);
     let (stage, value) = {
         let parts = input
@@ -183,16 +182,16 @@ pub fn seq_increase_mem_address_stage(
         )
     };
     let output_base = InfParOutputSys::new(input.config());
-    // Stage 0b000. 1. load data part from mem_address.
+    // Stage 0b00. 1. load data part from mem_address.
     let mut output_0 = output_base.clone();
     output_0.state = output_state
         .clone()
         .concat(U2VarSys::from(1u8).into())
         .concat(UDynVarSys::from_n(0u8, input.dpval.bitnum()));
     output_0.memr = true.into();
-    // Stage 0b001. 2. Increase data part value and store to mem_address.
-    // Stage 0b010. 3. If carry after increasing value then:
-    // Stage 0b011. 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
+    // Stage 0b01. 2. Increase data part value and store to mem_address.
+    // Stage 0b01. 3. If carry after increasing value then:
+    // Stage 0b01. 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
     let mut output_1 = output_base.clone();
     let (new_value, carry) = value.addc_with_carry(
         &UDynVarSys::from_n(1u8, input.dpval.bitnum()),
@@ -209,8 +208,7 @@ pub fn seq_increase_mem_address_stage(
     );
     output_1.dpw = true.into(); // store value to data part
     output_1.dpval = new_value;
-    // Stage 0b100. 4. Otherwise Move mem_address_pos back.
-    // Stage 0b101. 5. If move done then go to 1.
+    // Stage 0b10. 4. Otherwise Move mem_address_pos back.
     let output_state_2 = output_state
         .clone()
         .concat(U2VarSys::from(2u8).into())
