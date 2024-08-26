@@ -121,6 +121,7 @@ pub fn move_data_pos_stage(
     dpmove: u8,
     step_num: u64,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
     let state_start = output_state.bitnum();
     let step_num_bits = calc_log_bits_u64(step_num);
     extend_output_state(state_start, step_num_bits, input);
@@ -145,6 +146,7 @@ pub fn data_pos_to_start_stage(
     input: &mut InfParInputSys,
     data_kind: u8,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
     let input: &_ = input;
     let end = !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
@@ -161,6 +163,7 @@ pub fn seq_increase_mem_address_stage(
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
     let state_start = output_state.bitnum();
     // 1. load data part from mem_address.
     // 2. Increase data part value and store to mem_address.
@@ -202,6 +205,7 @@ pub fn init_mem_address_end_pos_stage(
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
     let state_start = output_state.bitnum();
     // Stages:
     // 1. Load cell from memory.
@@ -222,6 +226,7 @@ pub fn init_proc_id_end_pos_stage(
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
     let state_start = output_state.bitnum();
     extend_output_state(state_start, 4, input);
     (InfParOutputSys::new(input.config()), true.into())
