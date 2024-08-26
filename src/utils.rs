@@ -67,6 +67,7 @@ pub fn unused_inputs(mobj: &InfParMachineObjectSys, input_state: BoolVarSys) -> 
         | mobj.in_dp_move_done.clone()
 }
 
+// join stage ensure that at end used stage state will be zeroed and self looping is possible.
 pub fn join_stage(
     next_state: UDynVarSys,
     mut output: InfParOutputSys,
@@ -130,11 +131,7 @@ pub fn move_data_pos_stage(
     let end = if step_num_bits != 0 {
         let in_step = input.state.subvalue(state_start, step_num_bits);
         let end = (&in_step).equal(step_num - 1);
-        output.state = output_state.clone().concat(dynint_ite(
-            end.clone(),
-            UDynVarSys::from_n(0u8, step_num_bits),
-            &in_step + 1u8,
-        ));
+        output.state = &in_step + 1u8;
         end
     } else {
         output.state = output_state.clone();
@@ -157,8 +154,7 @@ pub fn data_pos_to_start_stage(
     let input: &_ = input;
     let end = input.state.bit(state_start) & !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
-    // zero state if end - to looping
-    output.state = output_state.concat(UDynVarSys::filled(1, !end.clone()));
+    output.state = output_state.concat(UDynVarSys::from_n(1u8, 1));
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(DPMOVE_BACKWARD);
     (join_stage(next_state, output, end.clone()), end)
