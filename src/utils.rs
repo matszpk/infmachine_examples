@@ -214,10 +214,8 @@ pub fn seq_increase_mem_address_stage(
         stage.into(),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
-    (
-        InfParOutputSys::new_from_dynintvar(input.config(), final_state),
-        end,
-    )
+    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
+    (join_stage(next_state, output, end.clone()), end)
 }
 
 pub fn init_mem_address_end_pos_stage(
