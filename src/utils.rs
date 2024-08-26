@@ -199,9 +199,7 @@ pub fn seq_increase_mem_address_stage(
     output_1.dpw = true.into(); // store value to data part
     output_1.dpval = new_value;
     // Stage 0b10. 4. Otherwise Move mem_address_pos back.
-    let output_state_2 = output_state
-        .clone()
-        .concat(U2VarSys::from(2u8).into());
+    let output_state_2 = output_state.clone().concat(U2VarSys::from(2u8).into());
     let (output_2, end) = data_pos_to_start_stage(
         output_state_2.clone(),
         output_state_2.clone(),
