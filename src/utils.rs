@@ -1,7 +1,6 @@
 use gategen::boolvar::*;
 use gategen::dynintvar::*;
 use gategen::intvar::*;
-use infmachine_config::*;
 use infmachine_gen::*;
 
 // Utilities for machine.
@@ -102,6 +101,7 @@ pub fn join_stage(
 //                -> (UDynVarSys, InfParOutputSys)
 // arguments:
 // output_state - output_state of state_start length that choose this stage
+// next_state - next state of state_start length that choose if end
 // input - InfParInput with input state and circuit inputs.
 // return:
 // (input_full_state, output, end condition):
@@ -115,6 +115,7 @@ pub fn join_stage(
 
 pub fn move_data_pos_stage(
     output_state: UDynVarSys,
+    next_state: UDynVarSys,
     input: &mut InfParInputSys,
     data_kind: u8,
     dpmove: u8,
@@ -135,26 +136,29 @@ pub fn move_data_pos_stage(
     };
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(dpmove);
-    (output, end)
+    (join_stage(next_state, output, end.clone()), end)
 }
 
 pub fn data_pos_to_start_stage(
     output_state: UDynVarSys,
+    next_state: UDynVarSys,
     input: &mut InfParInputSys,
     data_kind: u8,
 ) -> (InfParOutputSys, BoolVarSys) {
+    let input: &_ = input;
     let end = !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
     output.state = output_state;
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(DPMOVE_BACKWARD);
-    (output, end)
+    (join_stage(next_state, output, end.clone()), end)
 }
 
 // sequential increase memory address stage -
 // sequential - only if all processors have this same memory address.
 pub fn seq_increase_mem_address_stage(
     output_state: UDynVarSys,
+    next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
     let state_start = output_state.bitnum();
@@ -195,6 +199,7 @@ pub fn seq_increase_mem_address_stage(
 
 pub fn init_mem_address_end_pos_stage(
     output_state: UDynVarSys,
+    next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
     let state_start = output_state.bitnum();
@@ -214,6 +219,7 @@ pub fn init_mem_address_end_pos_stage(
 
 pub fn init_proc_id_end_pos_stage(
     output_state: UDynVarSys,
+    next_state: UDynVarSys,
     input: &mut InfParInputSys,
 ) -> (InfParOutputSys, BoolVarSys) {
     let state_start = output_state.bitnum();

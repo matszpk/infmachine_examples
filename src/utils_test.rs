@@ -34,17 +34,13 @@ fn gen_move_data_pos_test(
     let mut mach_input = mobj.input();
     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(1)));
     // first stage
-    let (output_1, end_1) = move_data_pos_stage(
+    let (output_1, _) = move_data_pos_stage(
         UDynVarSys::from_n(0u8, 1).concat(unused_bit.clone()),
+        UDynVarSys::from_n(1u8, 1).concat(unused_bit.clone()),
         &mut mach_input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
         step_num,
-    );
-    let output_1 = join_stage(
-        UDynVarSys::from_n(1u8, 1).concat(unused_bit.clone()),
-        output_1,
-        end_1,
     );
     // stop stage
     let mut output_2 = InfParOutputSys::new(config);
@@ -86,28 +82,20 @@ fn gen_move_data_pos_and_back_test(
     let mut mach_input = mobj.input();
     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
     // first stage
-    let (output_1, end_1) = move_data_pos_stage(
+    let (output_1, _) = move_data_pos_stage(
         unused_bit.clone().concat(UDynVarSys::from_n(0u8, 2)),
+        unused_bit.clone().concat(UDynVarSys::from_n(1u8, 2)),
         &mut mach_input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
         step_num,
     );
-    let output_1 = join_stage(
-        unused_bit.clone().concat(UDynVarSys::from_n(1u8, 2)),
-        output_1,
-        end_1,
-    );
     // back stage
-    let (output_2, end_2) = data_pos_to_start_stage(
+    let (output_2, _) = data_pos_to_start_stage(
         unused_bit.clone().concat(UDynVarSys::from_n(1u8, 2)),
+        unused_bit.clone().concat(UDynVarSys::from_n(2u8, 2)),
         &mut mach_input,
         DKIND_TEMP_BUFFER,
-    );
-    let output_2 = join_stage(
-        unused_bit.clone().concat(UDynVarSys::from_n(2u8, 2)),
-        output_2,
-        end_2,
     );
     // stop stage
     let mut output_3 = InfParOutputSys::new(config);
