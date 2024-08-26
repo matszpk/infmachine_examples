@@ -129,8 +129,13 @@ pub fn move_data_pos_stage(
     let mut output = InfParOutputSys::new(input.config());
     let end = if step_num_bits != 0 {
         let in_step = input.state.subvalue(state_start, step_num_bits);
-        output.state = output_state.clone().concat(&in_step + 1u8);
-        (&in_step).equal(UDynVarSys::from_n(step_num - 1, step_num_bits))
+        let end = (&in_step).equal(step_num - 1);
+        output.state = output_state.clone().concat(dynint_ite(
+            end.clone(),
+            UDynVarSys::from_n(0u8, step_num_bits),
+            &in_step + 1u8,
+        ));
+        end
     } else {
         output.state = output_state.clone();
         true.into()
@@ -171,14 +176,11 @@ pub fn seq_increase_mem_address_stage(
     // 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
     // 4. Otherwise Move mem_address_pos back.
     extend_output_state(state_start, 2, input);
-    let stage = U2VarSys::try_from(input.state.clone()).unwrap();
+    let stage = U2VarSys::try_from(input.state.clone().subvalue(state_start, 2)).unwrap();
     let output_base = InfParOutputSys::new(input.config());
     // Stage 0b00. 1. load data part from mem_address.
     let mut output_0 = output_base.clone();
-    output_0.state = output_state
-        .clone()
-        .concat(U2VarSys::from(1u8).into())
-        .concat(UDynVarSys::from_n(0u8, input.dpval.bitnum()));
+    output_0.state = output_state.clone().concat(U2VarSys::from(1u8).into());
     output_0.dpr = true.into();
     // Stage 0b01. 2. Increase data part value and store to mem_address.
     // Stage 0b01. 3. If carry after increasing value then:
@@ -199,10 +201,9 @@ pub fn seq_increase_mem_address_stage(
     output_1.dpw = true.into(); // store value to data part
     output_1.dpval = new_value;
     // Stage 0b10. 4. Otherwise Move mem_address_pos back.
-    let output_state_2 = output_state.clone().concat(U2VarSys::from(2u8).into());
     let (output_2, end) = data_pos_to_start_stage(
-        output_state_2.clone(),
-        output_state_2.clone(),
+        output_state.clone().concat(U2VarSys::from(2u8).into()),
+        output_state.clone().concat(U2VarSys::from(0u8).into()),
         input,
         DKIND_MEM_ADDRESS,
     );

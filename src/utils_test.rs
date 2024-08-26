@@ -148,7 +148,7 @@ fn gen_inc_mem_address_test(
     let mut mach_input = mobj.input();
     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
     // first stage
-    let in_step_count = mach_input.state.subvalue(1, 1 + step_num_bits);
+    let in_step_count = mach_input.state.subvalue(1, step_num_bits);
     let (mut output_1, end_1) = seq_increase_mem_address_stage(
         unused_bit.clone().concat(in_step_count.clone()),
         unused_bit.clone().concat(&in_step_count + 1u8),
