@@ -122,48 +122,44 @@ fn gen_move_data_pos_and_back_test(
     mobj.to_machine().to_toml()
 }
 
-// fn gen_move_data_pos_test(
-//     cell_len_bits: u32,
-//     data_part_len: u32,
-//     temp_buffer_len: u32,
-//     proc_num: u64,
-//     mem_size: u64,
-//     step_num: u64,
-// ) -> Result<String, toml::ser::Error> {
-//     let config = InfParInterfaceConfig {
-//         cell_len_bits,
-//         data_part_len,
-//     };
-//     let mut mobj = InfParMachineObjectSys::new(
-//         config,
-//         InfParEnvConfig {
-//             proc_num,
-//             flat_memory: true,
-//             max_mem_size: Some(mem_size),
-//             max_temp_buffer_len: temp_buffer_len,
-//         },
-//     );
-//     let step_num_bits = calc_log_bits_u64(step_num);
-//     mobj.in_state = Some(UDynVarSys::var(2 + step_num_bits));
-//     let mut mach_input = mobj.input();
-//     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
-//     // first stage
-//     let (output_1, _) = seq_increase_mem_address_stage(
-//         unused_bit.clone().concat(UDynVarSys::from_n(0u8, 1)),
-//         unused_bit.clone().concat(UDynVarSys::from_n(1u8, 1)),
-//         &mut mach_input,
-//     );
-// 
-//     let mut output_stages = vec![output_1, output_2];
-//     InfParOutputSys::fix_state_len(&mut output_stages);
-//     let final_state = dynint_table(
-//         mach_input.state.clone().subvalue(1, 2),
-//         output_stages.into_iter().map(|v| v.to_dynintvar()),
-//     );
-//     mobj.in_state = Some(mach_input.state);
-//     mobj.from_dynintvar(final_state);
-//     mobj.to_machine().to_toml()
-// }
+fn gen_inc_mem_address_test(
+    cell_len_bits: u32,
+    data_part_len: u32,
+    temp_buffer_len: u32,
+    proc_num: u64,
+    mem_size: u64,
+    step_num: u64,
+) -> Result<String, toml::ser::Error> {
+    let config = InfParInterfaceConfig {
+        cell_len_bits,
+        data_part_len,
+    };
+    let mut mobj = InfParMachineObjectSys::new(
+        config,
+        InfParEnvConfig {
+            proc_num,
+            flat_memory: true,
+            max_mem_size: Some(mem_size),
+            max_temp_buffer_len: temp_buffer_len,
+        },
+    );
+    let step_num_bits = calc_log_bits_u64(step_num);
+    mobj.in_state = Some(UDynVarSys::var(1 + step_num_bits));
+    let mut mach_input = mobj.input();
+    let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
+    // first stage
+    let in_step_count = mach_input.state.subvalue(1, 1 + step_num_bits);
+    let (mut output_1, end_1) = seq_increase_mem_address_stage(
+        unused_bit.clone().concat(in_step_count.clone()),
+        unused_bit.clone().concat(&in_step_count + 1u8),
+        &mut mach_input,
+    );
+    output_1.stop = end_1 & in_step_count.equal(step_num - 1);
+
+    mobj.in_state = Some(mach_input.state);
+    mobj.from_output(output_1);
+    mobj.to_machine().to_toml()
+}
 
 fn main() {
     let mut args = env::args();
@@ -211,22 +207,22 @@ fn main() {
                 .unwrap())
             );
         }
-        // "inc_mem_address" => {
-        //     let step_num: u64 = args.next().unwrap().parse().unwrap();
-        //     assert_ne!(step_num, 0);
-        //     print!(
-        //         "{}",
-        //         callsys(|| gen_inc_mem_address_test(
-        //             cell_len_bits,
-        //             data_part_len,
-        //             temp_buffer_len,
-        //             proc_num,
-        //             mem_size,
-        //             step_num,
-        //         )
-        //         .unwrap())
-        //     );
-        // }
+        "inc_mem_address" => {
+            let step_num: u64 = args.next().unwrap().parse().unwrap();
+            assert_ne!(step_num, 0);
+            print!(
+                "{}",
+                callsys(|| gen_inc_mem_address_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    step_num,
+                )
+                .unwrap())
+            );
+        }
         _ => {
             panic!("Unknown example");
         }
