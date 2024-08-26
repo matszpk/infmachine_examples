@@ -1,0 +1,91 @@
+use gategen::boolvar::*;
+use gategen::dynintvar::*;
+use gategen::intvar::*;
+use infmachine_config::*;
+use infmachine_gen::*;
+
+use std::env;
+
+mod utils;
+use utils::*;
+
+fn gen_move_data_pos_test(
+    cell_len_bits: u32,
+    data_part_len: u32,
+    temp_buffer_len: u32,
+    proc_num: u64,
+    mem_size: u64,
+    step_num: u64,
+) -> Result<String, toml::ser::Error> {
+    let config = InfParInterfaceConfig {
+        cell_len_bits,
+        data_part_len,
+    };
+    let mut mobj = InfParMachineObjectSys::new(
+        config,
+        InfParEnvConfig {
+            proc_num,
+            flat_memory: true,
+            max_mem_size: Some(mem_size),
+            max_temp_buffer_len: temp_buffer_len,
+        },
+    );
+    let mut mach_input = mobj.input();
+    mach_input.state = UDynVarSys::var(1);
+    // first stage
+    let (mach_input_state, output_1, end_1) = move_data_pos_stage(
+        UDynVarSys::from_n(0u8, 1),
+        &mach_input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        step_num,
+    );
+    let output_1 = join_stage(UDynVarSys::from_n(0u8, 1), output_1, end_1);
+    // stop stage
+    let mut output_2 = InfParOutputSys::new(config);
+    output_2.state = UDynVarSys::from_n(1u8, 1);
+    output_2.stop = true.into();
+    let mut output_stages = vec![output_1, output_2];
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let final_state = dynint_table(
+        mach_input_state.clone(),
+        output_stages.into_iter().map(|v| v.to_dynintvar()),
+    );
+    mobj.in_state = Some(mach_input_state);
+    mobj.to_machine().to_toml()
+}
+
+fn main() {
+    let mut args = env::args();
+    args.next().unwrap();
+    let stage = args.next().unwrap();
+    let cell_len_bits: u32 = args.next().unwrap().parse().unwrap();
+    let data_part_len: u32 = args.next().unwrap().parse().unwrap();
+    let temp_buffer_len: u32 = args.next().unwrap().parse().unwrap();
+    let proc_num: u64 = args.next().unwrap().parse().unwrap();
+    let mem_size: u64 = args.next().unwrap().parse().unwrap();
+    assert!(cell_len_bits <= 16);
+    assert_ne!(data_part_len, 0);
+    assert_ne!(proc_num, 0);
+    assert_ne!(mem_size, 0);
+    match stage.as_str() {
+        "move_data_pos" => {
+            let step_num: u64 = args.next().unwrap().parse().unwrap();
+            print!(
+                "{}",
+                callsys(|| gen_move_data_pos_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    step_num,
+                )
+                .unwrap())
+            );
+        }
+        _ => {
+            panic!("Unknown example");
+        }
+    }
+}

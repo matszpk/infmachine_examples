@@ -101,8 +101,8 @@ pub fn join_stage(
 pub fn move_data_pos_stage(
     output_state: UDynVarSys,
     input: &InfParInputSys,
-    data_kind: u32,
-    dpmove: u32,
+    data_kind: u8,
+    dpmove: u8,
     step_num: u64,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
     let state_start = output_state.bitnum();
@@ -125,7 +125,7 @@ pub fn move_data_pos_stage(
 pub fn data_pos_to_start_stage(
     output_state: UDynVarSys,
     input: &InfParInputSys,
-    data_kind: u32,
+    data_kind: u8,
 ) -> (UDynVarSys, InfParOutputSys, BoolVarSys) {
     let end = !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());

@@ -23,5 +23,9 @@ path = "src/simple_inc3.rs"
 name = "prefix_sum"
 path = "src/prefix_sum.rs"
 
+[[bin]]
+name = "utils_test"
+path = "src/utils_test.rs"
+
 [dependencies]
 infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
