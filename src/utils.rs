@@ -154,7 +154,6 @@ pub fn data_pos_to_start_stage(
     let input: &_ = input;
     let end = input.state.bit(state_start) & !&input.dp_move_done;
     let mut output = InfParOutputSys::new(input.config());
-    // zero state if end - to looping
     output.state = output_state.concat(UDynVarSys::from_n(1u8, 1));
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(DPMOVE_BACKWARD);
