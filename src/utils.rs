@@ -108,10 +108,15 @@ pub fn move_data_pos_stage(
     let state_start = output_state.bitnum();
     let step_num_bits = calc_log_bits_u64(step_num);
     let input_state = extend_output_state(state_start, step_num_bits, input);
-    let in_step = input_state.subvalue(state_start, step_num_bits);
-    let end = (&in_step).equal(UDynVarSys::from_n(step_num - 1, step_num_bits));
     let mut output = InfParOutputSys::new(input.config());
-    output.state = output_state.clone().concat(&in_step + 1u8);
+    let end = if step_num_bits != 0 {
+        let in_step = input_state.subvalue(state_start, step_num_bits);
+        output.state = output_state.clone().concat(&in_step + 1u8);
+        (&in_step).equal(UDynVarSys::from_n(step_num - 1, step_num_bits))
+    } else {
+        output.state = output_state.clone();
+        true.into()
+    };
     output.dkind = U2VarSys::from(data_kind);
     output.dpmove = U2VarSys::from(dpmove);
     (input_state, output, end)
