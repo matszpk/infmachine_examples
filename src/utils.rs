@@ -221,13 +221,14 @@ pub fn init_mem_address_end_pos_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
+    temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     let state_start = output_state.bitnum();
     // Stages:
     // 1. Load cell from memory.
     // 2. If cell==0 then end of algorithm.
-    // 3. If cell!=0 then increase temp_buffer_pos and decrease this value.
+    // 3. If cell!=0 then temp_buffer_pos by temp_buffer_step and decrease this value.
     // 4. If cell==0 then increase memory_address and go to 1.
     //let input_state.clone().subvalue(state_start,
     let input_state = extend_output_state(state_start, 4, input);
