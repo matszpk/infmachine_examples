@@ -188,7 +188,7 @@ pub fn seq_increase_mem_address_stage(
         .clone()
         .concat(U2VarSys::from(1u8).into())
         .concat(UDynVarSys::from_n(0u8, input.dpval.bitnum()));
-    output_0.memr = true.into();
+    output_0.dpr = true.into();
     // Stage 0b01. 2. Increase data part value and store to mem_address.
     // Stage 0b01. 3. If carry after increasing value then:
     // Stage 0b01. 3.1. Move forward (increase mem_address_pos) in mem_address and go to 1.
