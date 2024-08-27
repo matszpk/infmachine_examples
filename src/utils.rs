@@ -230,7 +230,7 @@ pub fn init_mem_address_end_pos_stage(
     let state_start = output_state.bitnum();
     extend_output_state(state_start, 3 + cell_len, input);
     let stage = U3VarSys::try_from(input.state.clone().subvalue(state_start, 3)).unwrap();
-    let value_count = input.state.clone().subvalue(state_start + 2, cell_len);
+    let value_count = input.state.clone().subvalue(state_start + 3, cell_len);
     let output_base = InfParOutputSys::new(config);
     let create_out_state = |s: U3VarSys, v| output_state.clone().concat(s.into()).concat(v);
     // Stages:
