@@ -484,3 +484,218 @@ pub fn init_proc_id_end_pos_stage(
     let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
     (join_stage(next_state, output, end.clone()), end)
 }
+
+// join together init_mem_address_end_pos and init_proc_id_end_pos
+pub fn init_machine_end_pos_stage(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_ne!(temp_buffer_step, 0);
+    let config = input.config();
+    let cell_len = 1 << config.cell_len_bits as usize;
+    let state_start = output_state.bitnum();
+    extend_output_state(state_start, 5 + cell_len, input);
+    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
+    let is_proc_id = input.state.bit(state_start + 4);
+    let value_count = input.state.clone().subvalue(state_start + 5, cell_len);
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state = |s: U4VarSys, ip, v| {
+        output_state
+            .clone()
+            .concat(s.into())
+            .concat(UDynVarSys::filled(1, ip))
+            .concat(v)
+    };
+    // Stages:
+    // tidx - stage index for main routine
+    let tidx = if config.data_part_len <= 1 {
+        assert!(temp_buffer_step >= 2);
+        1u8
+    } else {
+        0u8
+    };
+    // make temp buffer position to 1.
+    let mut output_tshift = output_base.clone();
+    if config.data_part_len == 1 {
+        output_tshift.state = create_out_state(
+            U4VarSys::from(1u8),
+            is_proc_id.clone(),
+            UDynVarSys::from_n(0u8, cell_len),
+        );
+        output_tshift.dpmove = int_ite(
+            is_proc_id.clone(),
+            U2VarSys::from(DPMOVE_FORWARD),
+            U2VarSys::from(DPMOVE_NOTHING),
+        );
+        output_tshift.dkind = DKIND_TEMP_BUFFER.into();
+    }
+    // 0: 1. Load cell from memory.
+    let mut output_0 = output_base.clone();
+    output_0.state = create_out_state(
+        U4VarSys::from(tidx + 1u8),
+        is_proc_id.clone(),
+        UDynVarSys::from_n(0u8, cell_len),
+    );
+    output_0.memr = true.into();
+    // 1: 2. If cell==0 then end go to 5.
+    let mut output_1 = output_base.clone();
+    output_1.state = create_out_state(
+        int_ite(
+            (&input.memval).equal(0u8),
+            // end of algorithm
+            U4VarSys::from(tidx + 5u8),
+            // start move temp buffer position
+            U4VarSys::from(tidx + 2u8),
+        ),
+        is_proc_id.clone(),
+        input.memval.clone(),
+    );
+    // 3. If cell!=0 then:
+    // 3.1. Decrease this value.
+    let mut output_2 = output_base.clone();
+    output_2.state = create_out_state(
+        U4VarSys::from(tidx + 3u8),
+        is_proc_id.clone(),
+        &value_count - 1u8,
+    );
+    // 3.2. Add temp_buffer_step to temp_buffer_pos
+    let next_stage_3 = int_ite(
+        (&value_count).equal(0u8),
+        // if end of value_count then increase mem address
+        U4VarSys::from(tidx + 4u8),
+        // continue
+        U4VarSys::from(tidx + 2u8),
+    );
+    // 4. If cell==0 then:
+    let (output_3, _) = move_data_pos_stage(
+        create_out_state(
+            U4VarSys::from(tidx + 3u8),
+            is_proc_id.clone(),
+            value_count.clone(),
+        ),
+        create_out_state(next_stage_3, is_proc_id.clone(), value_count.clone()),
+        input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        temp_buffer_step as u64,
+    );
+    // 4.1. increase memory_address, load cell from memory and go to 2.
+    let (mut output_4, end_4) = seq_increase_mem_address_stage(
+        create_out_state(
+            U4VarSys::from(tidx + 4u8),
+            is_proc_id.clone(),
+            value_count.clone(),
+        ),
+        create_out_state(
+            U4VarSys::from(tidx + 1u8),
+            is_proc_id.clone(),
+            value_count.clone(),
+        ),
+        input,
+    );
+    // at end read memory
+    output_4.memr = end_4;
+    // 5. increase memory_address.
+    let (output_5, _) = seq_increase_mem_address_stage(
+        create_out_state(
+            U4VarSys::from(tidx + 5u8),
+            is_proc_id.clone(),
+            value_count.clone(),
+        ),
+        create_out_state(
+            U4VarSys::from(tidx + 6u8),
+            is_proc_id.clone(),
+            value_count.clone(),
+        ),
+        input,
+    );
+    // 6. Set 1 to current temp buffer part.
+    let (output_6, output_6_1, tidx) = if config.data_part_len > 1 {
+        // if data_part_len > 1: read temp buffer part
+        let mut output_6 = output_base.clone();
+        output_6.state = create_out_state(
+            U4VarSys::from(tidx + 7u8),
+            is_proc_id.clone(),
+            UDynVarSys::from_n(0u8, cell_len),
+        );
+        output_6.dkind = DKIND_TEMP_BUFFER.into();
+        output_6.dpr = true.into();
+        // and or value with current data part and 2
+        let mut output_6_1 = output_base.clone();
+        output_6_1.state = create_out_state(
+            U4VarSys::from(tidx + 8u8),
+            is_proc_id.clone(),
+            UDynVarSys::from_n(0u8, cell_len),
+        );
+        output_6_1.dpval = UDynVarSys::from_n(2u8, config.data_part_len as usize) | &input.dpval;
+        output_6_1.dkind = DKIND_TEMP_BUFFER.into();
+        output_6_1.dpw = true.into();
+        (output_6, output_6_1, tidx + 1)
+    } else {
+        // if data_part_len == 1: Set 1 to current temp buffer part.
+        let mut output_6 = output_base.clone();
+        output_6.state = create_out_state(
+            U4VarSys::from(tidx + 7u8),
+            is_proc_id.clone(),
+            UDynVarSys::from_n(0u8, cell_len),
+        );
+        output_6.dpval = UDynVarSys::from_n(1u8, config.data_part_len as usize);
+        output_6.dkind = DKIND_TEMP_BUFFER.into();
+        output_6.dpw = true.into();
+        (output_6.clone(), output_6, tidx)
+    };
+    // 7. Move temp buffer part pos to start.
+    let (output_7, end_7) = data_pos_to_start_stage(
+        create_out_state(
+            U4VarSys::from(tidx + 7u8),
+            is_proc_id.clone(),
+            UDynVarSys::from_n(0u8, cell_len),
+        ),
+        create_out_state(
+            U4VarSys::from(tidx + 0u8),
+            !&is_proc_id,
+            UDynVarSys::from_n(0u8, cell_len),
+        ),
+        input,
+        DKIND_TEMP_BUFFER,
+    );
+    let end = is_proc_id & end_7 & (&stage).equal(tidx + 7u8);
+    // finishing
+    let mut output_stages = if config.data_part_len > 1 {
+        vec![
+            output_0,
+            output_1,
+            output_2,
+            output_3,
+            output_4,
+            output_5,
+            output_6,
+            output_6_1,
+            output_7.clone(),
+        ]
+    } else {
+        vec![
+            output_tshift,
+            output_0,
+            output_1,
+            output_2,
+            output_3,
+            output_4,
+            output_5,
+            output_6,
+            output_7.clone(),
+        ]
+    };
+    // extend to 16 elements
+    output_stages.extend(std::iter::repeat(output_7).take(16 - 9));
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let final_state = dynint_table(
+        stage.into(),
+        output_stages.into_iter().map(|v| v.to_dynintvar()),
+    );
+    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
+    (join_stage(next_state, output, end.clone()), end)
+}
