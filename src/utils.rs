@@ -217,11 +217,12 @@ pub fn seq_increase_mem_address_stage(
     (join_stage(next_state, output, end.clone()), end)
 }
 
-pub fn init_mem_address_end_pos_stage(
+pub fn init_data_end_pos_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
+    end_mark: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     let config = input.config();
@@ -287,7 +288,8 @@ pub fn init_mem_address_end_pos_stage(
     // 6. Set 1 to current temp buffer part.
     let mut output_6 = output_base.clone();
     output_6.state = create_out_state(U3VarSys::from(7u8), UDynVarSys::from_n(0u8, cell_len_bits));
-    output_6.dpval = UDynVarSys::from_n(1u8, config.data_part_len as usize);
+    output_6.dpval = UDynVarSys::from_n(end_mark, config.data_part_len as usize);
+    output_6.dkind = DKIND_TEMP_BUFFER.into();
     output_6.dpw = true.into();
     // 7. Move temp buffer part pos to start.
     let (output_7, end_7) = data_pos_to_start_stage(
@@ -308,6 +310,15 @@ pub fn init_mem_address_end_pos_stage(
     );
     let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
     (join_stage(next_state, output, end.clone()), end)
+}
+
+pub fn init_mem_address_end_pos_stage(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+) -> (InfParOutputSys, BoolVarSys) {
+    init_data_end_pos_stage(output_state, next_state, input, temp_buffer_step, 1)
 }
 
 // init_proc_id_end_pos - initialize proc id end position from memory.
