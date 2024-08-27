@@ -224,19 +224,91 @@ pub fn init_mem_address_end_pos_stage(
     temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
+    let config = input.config();
+    let cell_len_bits = config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
+    extend_output_state(state_start, 3 + cell_len_bits, input);
+    let stage = U3VarSys::try_from(input.state.clone().subvalue(state_start, 3)).unwrap();
+    let value_count = input.state.clone().subvalue(state_start + 2, cell_len_bits);
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state = |s: U3VarSys, v| output_state.clone().concat(s.into()).concat(v);
     // Stages:
-    // 1. Load cell from memory.
-    // 2. If cell==0 then end go to 5.
+    // 0: 1. Load cell from memory.
+    let mut output_0 = output_base.clone();
+    output_0.state = create_out_state(U3VarSys::from(1u8), UDynVarSys::from_n(0u8, cell_len_bits));
+    output_0.memr = true.into();
+    // 1: 2. If cell==0 then end go to 5.
+    let mut output_1 = output_base.clone();
+    output_1.state = create_out_state(
+        int_ite(
+            (&input.memval).equal(0u8),
+            // end of algorithm
+            U3VarSys::from(5u8),
+            // start move temp buffer position
+            U3VarSys::from(2u8),
+        ),
+        input.memval.clone(),
+    );
     // 3. If cell!=0 then:
-    // 3.1. Add temp_buffer_step to temp_buffer_pos
-    // 3.2. Decrease this value.
-    // 4. If cell==0 then increase memory_address and go to 1.
+    // 3.1. Decrease this value.
+    let mut output_2 = output_base.clone();
+    output_2.state = create_out_state(U3VarSys::from(3u8), &value_count - 1u8);
+    // 3.2. Add temp_buffer_step to temp_buffer_pos
+    let next_stage_3 = int_ite(
+        (&value_count).equal(0u8),
+        // if end of value_count then increase mem address
+        U3VarSys::from(4u8),
+        // continue
+        U3VarSys::from(2u8),
+    );
+    // 4. If cell==0 then:
+    let (output_3, _) = move_data_pos_stage(
+        create_out_state(U3VarSys::from(3u8), value_count.clone()),
+        create_out_state(next_stage_3, value_count.clone()),
+        input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        temp_buffer_step as u64,
+    );
+    // 4.1. increase memory_address, load cell from memory and go to 2.
+    let (mut output_4, end_4) = seq_increase_mem_address_stage(
+        create_out_state(U3VarSys::from(4u8), value_count.clone()),
+        create_out_state(U3VarSys::from(1u8), value_count.clone()),
+        input,
+    );
+    // at end read memory
+    output_4.memr = end_4;
     // 5. Set 1 to current temp buffer part.
+    let mut output_5 = output_base.clone();
+    output_5.state = create_out_state(U3VarSys::from(6u8), UDynVarSys::from_n(0u8, cell_len_bits));
+    output_5.dpval = UDynVarSys::from_n(1u8, config.data_part_len as usize);
+    output_5.dpw = true.into();
     // 6. Move temp buffer part pos to start.
-    //let input_state.clone().subvalue(state_start,
-    let input_state = extend_output_state(state_start, 4, input);
-    (InfParOutputSys::new(input.config()), true.into())
+    let (output_6, end_6) = data_pos_to_start_stage(
+        create_out_state(U3VarSys::from(6u8), UDynVarSys::from_n(0u8, cell_len_bits)),
+        create_out_state(U3VarSys::from(0u8), UDynVarSys::from_n(0u8, cell_len_bits)),
+        input,
+        DKIND_TEMP_BUFFER,
+    );
+    let end = end_6 & (&stage).equal(6u8);
+    // finishing
+    let mut output_stages = vec![
+        output_0,
+        output_1,
+        output_2,
+        output_3,
+        output_4,
+        output_5,
+        output_6.clone(),
+        output_6,
+    ];
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let final_state = dynint_table(
+        stage.into(),
+        output_stages.into_iter().map(|v| v.to_dynintvar()),
+    );
+    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
+    (join_stage(next_state, output, end.clone()), end)
 }
 
 // init_proc_id_end_pos - initialize proc id end position from memory.
