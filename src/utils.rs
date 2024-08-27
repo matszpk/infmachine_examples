@@ -226,17 +226,17 @@ pub fn init_mem_address_end_pos_stage(
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     let config = input.config();
-    let cell_len_bits = config.cell_len_bits as usize;
+    let cell_len = 1 << config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
-    extend_output_state(state_start, 3 + cell_len_bits, input);
+    extend_output_state(state_start, 3 + cell_len, input);
     let stage = U3VarSys::try_from(input.state.clone().subvalue(state_start, 3)).unwrap();
-    let value_count = input.state.clone().subvalue(state_start + 2, cell_len_bits);
+    let value_count = input.state.clone().subvalue(state_start + 2, cell_len);
     let output_base = InfParOutputSys::new(config);
     let create_out_state = |s: U3VarSys, v| output_state.clone().concat(s.into()).concat(v);
     // Stages:
     // 0: 1. Load cell from memory.
     let mut output_0 = output_base.clone();
-    output_0.state = create_out_state(U3VarSys::from(1u8), UDynVarSys::from_n(0u8, cell_len_bits));
+    output_0.state = create_out_state(U3VarSys::from(1u8), UDynVarSys::from_n(0u8, cell_len));
     output_0.memr = true.into();
     // 1: 2. If cell==0 then end go to 5.
     let mut output_1 = output_base.clone();
@@ -287,14 +287,14 @@ pub fn init_mem_address_end_pos_stage(
     );
     // 6. Set 1 to current temp buffer part.
     let mut output_6 = output_base.clone();
-    output_6.state = create_out_state(U3VarSys::from(7u8), UDynVarSys::from_n(0u8, cell_len_bits));
+    output_6.state = create_out_state(U3VarSys::from(7u8), UDynVarSys::from_n(0u8, cell_len));
     output_6.dpval = UDynVarSys::from_n(1u8, config.data_part_len as usize);
     output_6.dkind = DKIND_TEMP_BUFFER.into();
     output_6.dpw = true.into();
     // 7. Move temp buffer part pos to start.
     let (output_7, end_7) = data_pos_to_start_stage(
-        create_out_state(U3VarSys::from(7u8), UDynVarSys::from_n(0u8, cell_len_bits)),
-        create_out_state(U3VarSys::from(0u8), UDynVarSys::from_n(0u8, cell_len_bits)),
+        create_out_state(U3VarSys::from(7u8), UDynVarSys::from_n(0u8, cell_len)),
+        create_out_state(U3VarSys::from(0u8), UDynVarSys::from_n(0u8, cell_len)),
         input,
         DKIND_TEMP_BUFFER,
     );
@@ -303,6 +303,13 @@ pub fn init_mem_address_end_pos_stage(
     let mut output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
     ];
+    println!(
+        "OutStateLen: {:?}",
+        output_stages
+            .iter()
+            .map(|v| v.state.bitnum())
+            .collect::<Vec<_>>()
+    );
     InfParOutputSys::fix_state_len(&mut output_stages);
     let final_state = dynint_table(
         stage.into(),
