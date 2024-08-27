@@ -224,6 +224,7 @@ pub fn init_mem_address_end_pos_stage(
     temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_ne!(temp_buffer_step, 0);
     let config = input.config();
     let cell_len_bits = config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
