@@ -187,7 +187,7 @@ fn gen_init_mem_address_end_pos_test(
     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
     // first stage
     let (output_1, _) = init_mem_address_end_pos_stage(
-        unused_bit.clone().concat(UDynVarSys::from_n(0u8, 1)),
+        mach_input.state.clone(),
         unused_bit.clone().concat(UDynVarSys::from_n(1u8, 1)),
         &mut mach_input,
         temp_buffer_step,
