@@ -303,13 +303,6 @@ pub fn init_mem_address_end_pos_stage(
     let mut output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
     ];
-    println!(
-        "OutStateLen: {:?}",
-        output_stages
-            .iter()
-            .map(|v| v.state.bitnum())
-            .collect::<Vec<_>>()
-    );
     InfParOutputSys::fix_state_len(&mut output_stages);
     let final_state = dynint_table(
         stage.into(),

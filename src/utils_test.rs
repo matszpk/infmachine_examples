@@ -187,14 +187,14 @@ fn gen_init_mem_address_end_pos_test(
     let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
     // first stage
     let (output_1, _) = init_mem_address_end_pos_stage(
-        mach_input.state.clone(),
+        unused_bit.clone().concat(UDynVarSys::from_n(0u8, 1)),
         unused_bit.clone().concat(UDynVarSys::from_n(1u8, 1)),
         &mut mach_input,
         temp_buffer_step,
     );
     // stop stage
     let mut output_2 = InfParOutputSys::new(config);
-    output_2.state = unused_bit.clone().concat(UDynVarSys::from_n(1u8, 1));
+    output_2.state = mach_input.state.clone();
     output_2.stop = true.into();
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
