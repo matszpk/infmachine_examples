@@ -327,9 +327,9 @@ pub fn init_proc_id_end_pos_stage(
     let config = input.config();
     let cell_len = 1 << config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
-    extend_output_state(state_start, 3 + cell_len, input);
-    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 3)).unwrap();
-    let value_count = input.state.clone().subvalue(state_start + 3, cell_len);
+    extend_output_state(state_start, 4 + cell_len, input);
+    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
+    let value_count = input.state.clone().subvalue(state_start + 4, cell_len);
     let output_base = InfParOutputSys::new(config);
     let create_out_state = |s: U4VarSys, v| output_state.clone().concat(s.into()).concat(v);
     // Stages:
