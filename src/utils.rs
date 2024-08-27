@@ -228,7 +228,9 @@ pub fn init_mem_address_end_pos_stage(
     // Stages:
     // 1. Load cell from memory.
     // 2. If cell==0 then end of algorithm.
-    // 3. If cell!=0 then temp_buffer_pos by temp_buffer_step and decrease this value.
+    // 3. If cell!=0 then:
+    // 3.1. Add temp_buffer_step to temp_buffer_pos
+    // 3.2. Decrease this value.
     // 4. If cell==0 then increase memory_address and go to 1.
     //let input_state.clone().subvalue(state_start,
     let input_state = extend_output_state(state_start, 4, input);
