@@ -447,7 +447,7 @@ pub fn init_proc_id_end_pos_stage(
         input,
         DKIND_TEMP_BUFFER,
     );
-    let end = end_7 & (&stage).equal(7u8);
+    let end = end_7 & (&stage).equal(tidx + 7u8);
     // finishing
     let mut output_stages = if config.data_part_len > 1 {
         vec![
