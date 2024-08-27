@@ -583,14 +583,15 @@ pub fn init_machine_end_pos_stage(
         temp_buffer_step as u64,
     );
     // 4.1. increase memory_address, load cell from memory and go to 2.
+    // 5. increase memory_address.
     let (mut output_4, end_4) = seq_increase_mem_address_stage(
+        create_out_state(stage.clone(), is_proc_id.clone(), value_count.clone()),
         create_out_state(
-            U4VarSys::from(tidx + 4u8),
-            is_proc_id.clone(),
-            value_count.clone(),
-        ),
-        create_out_state(
-            U4VarSys::from(tidx + 1u8),
+            int_ite(
+                (&stage).equal(tidx + 5u8),
+                U4VarSys::from(tidx + 6u8),
+                U4VarSys::from(tidx + 1u8),
+            ),
             is_proc_id.clone(),
             value_count.clone(),
         ),
@@ -598,20 +599,6 @@ pub fn init_machine_end_pos_stage(
     );
     // at end read memory
     output_4.memr = end_4;
-    // 5. increase memory_address.
-    let (output_5, _) = seq_increase_mem_address_stage(
-        create_out_state(
-            U4VarSys::from(tidx + 5u8),
-            is_proc_id.clone(),
-            value_count.clone(),
-        ),
-        create_out_state(
-            U4VarSys::from(tidx + 6u8),
-            is_proc_id.clone(),
-            value_count.clone(),
-        ),
-        input,
-    );
     // 6. Set 1 to current temp buffer part.
     let (output_6, output_6_1, tidx) = if config.data_part_len > 1 {
         // if data_part_len > 1: read temp buffer part
@@ -670,8 +657,8 @@ pub fn init_machine_end_pos_stage(
             output_1,
             output_2,
             output_3,
+            output_4.clone(),
             output_4,
-            output_5,
             output_6,
             output_6_1,
             output_7.clone(),
@@ -683,8 +670,8 @@ pub fn init_machine_end_pos_stage(
             output_1,
             output_2,
             output_3,
+            output_4.clone(),
             output_4,
-            output_5,
             output_6,
             output_7.clone(),
         ]
