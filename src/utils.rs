@@ -511,8 +511,6 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     // Algorithm:
     // 0. If data_part_len == 1: Make forward temp_buffer_pos to move to proc_id end marker.
     // tidx - stage index for main routine
-    // temp_buffer_step_pos_old - used while moving to next end of proc_id part.
-    let temp_buffer_step_pos_old = temp_buffer_step_pos;
     let (tidx, temp_buffer_step_pos) = if config.data_part_len <= 1 {
         assert!(temp_buffer_step >= 2);
         assert!(temp_buffer_step_pos >= 2);
@@ -530,6 +528,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     // 0: 1. Load temp_buffer data part.
     let mut output_0 = output_base.clone();
     output_0.state = create_out_state(StageType::from(tidx + 1u8));
+    output_0.dkind = DKIND_TEMP_BUFFER.into();
     output_0.dpr = true.into();
     // 1: 2. If data_part==0: then:
     let mut output_1 = output_base.clone();
@@ -573,8 +572,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
         input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
-        // use unfixed temp_buffer_step_pos_old to skip first data part.
-        (temp_buffer_step - temp_buffer_step_pos_old + 1) as u64,
+        (temp_buffer_step - temp_buffer_step_pos) as u64,
     );
     // 4. Else (step 1)
     // 6: 4.1. Move temp buffer position to start.
