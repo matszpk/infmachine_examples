@@ -92,6 +92,31 @@ pub fn join_stage(
     }
 }
 
+pub fn finish_stage_with_table(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &InfParInputSys,
+    mut output_stages: Vec<InfParOutputSys>,
+    stage: UDynVarSys,
+    end: BoolVarSys,
+) -> (InfParOutputSys, BoolVarSys) {
+    let state_start = output_state.bitnum();
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let output_stages = output_stages
+        .into_iter()
+        .map(|v| {
+            let state_int = v.to_dynintvar();
+            state_int.subvalue(state_start, state_int.bitnum() - state_start)
+        })
+        .collect::<Vec<_>>();
+    let last = output_stages.last().unwrap().clone();
+    // Use output state outside joining outputs to reduce gates. It is possible because
+    // first outputs are state outputs.
+    let final_state = output_state.concat(dynint_table_partial(stage, output_stages, last));
+    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
+    (join_stage(next_state, output, end.clone()), end)
+}
+
 // function form: f(output_state, UDynVarSys, state_start: usize, in_output: &InfParOutputSys)
 //                -> (UDynVarSys, InfParOutputSys)
 // arguments:
