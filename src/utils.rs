@@ -161,6 +161,29 @@ pub fn move_data_pos_stage(
     (join_stage(next_state, output, end.clone()), end)
 }
 
+// step_num_m1 - step_num - 1
+pub fn move_data_pos_expr_stage(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    data_kind: u8,
+    dpmove: u8,
+    step_num_m1: UDynVarSys,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    let state_start = output_state.bitnum();
+    let step_num_bits = step_num_m1.bitnum();
+    extend_output_state(state_start, step_num_bits, input);
+    let input: &_ = input;
+    let mut output = InfParOutputSys::new(input.config());
+    let in_step = input.state.subvalue(state_start, step_num_bits);
+    let end = (&in_step).equal(step_num_m1);
+    output.state = output_state.clone().concat(&in_step + 1u8);
+    output.dkind = U2VarSys::from(data_kind);
+    output.dpmove = U2VarSys::from(dpmove);
+    (join_stage(next_state, output, end.clone()), end)
+}
+
 pub fn data_pos_to_start_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
