@@ -109,7 +109,7 @@ pub fn finish_stage_with_table(
             state_int.subvalue(state_start, state_int.bitnum() - state_start)
         })
         .collect::<Vec<_>>();
-    let last = output_stages.last().unwrap().clone();
+    let last = UDynVarSys::from_n(0u8, output_stages[0].bitnum());
     // Use output state outside joining outputs to reduce gates. It is possible because
     // first outputs are state outputs.
     let final_state = output_state.concat(dynint_table_partial(stage, output_stages, last));
