@@ -473,18 +473,19 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     let state_start = output_state.bitnum();
     extend_output_state(state_start, 5 + cell_len, input);
     let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
-    // Algorithm
-    // 1. Load proc_id data_part.
-    // 2. Store data part into current temp buffer position.
-    // 3. Move forward proc id position.
-    // 4. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
-    // 5. Load temp_buffer data part.
-    // 6. If data_part==0: then:
-    // 6.1. Move temp buffer position forward by temp_buffer_step_pos and go to 1.
-    // 7. Else
-    // 7.1. Move temp buffer position to start.
-    // 7.2. Move proc id position to start.
-    // 7.3. End of algorithm.
+    // Algorithm:
+    // 1. Load temp_buffer data part.
+    // 2. If data_part==0: then:
+    // 3.1. Move temp buffer position forward by temp_buffer_step_pos and go to 5.
+    // 4. Else
+    // 4.1. Move temp buffer position to start.
+    // 4.2. Move proc id position to start.
+    // 4.3. End of algorithm.
+    // 5. Load proc_id data_part.
+    // 6. Store data part into current temp buffer position.
+    // 7. Move forward proc id position.
+    // 8. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
+    // 9. Go to 1.
     finish_stage_with_table(
         output_state,
         next_state,
