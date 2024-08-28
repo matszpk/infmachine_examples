@@ -557,6 +557,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     output_3.state = create_out_state(StageType::from(tidx + 4u8));
     output_3.dkind = DKIND_PROC_ID.into();
     output_3.dpr = true.into();
+    output_3.dpmove = DPMOVE_FORWARD.into();
     // 4: 6. Store data part into current temp buffer position.
     let mut output_4 = output_base.clone();
     output_4.state = create_out_state(StageType::from(tidx + 5u8));
@@ -564,7 +565,6 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     output_4.dpw = true.into();
     output_4.dpval = input.dpval.clone();
     // 7. Move forward proc id position.
-    output_4.dpmove = DPMOVE_FORWARD.into();
     // 5: 8. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
     // 5: 9. Go to 1.
     let (output_5, _) = move_data_pos_stage(
@@ -574,7 +574,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
         // use unfixed temp_buffer_step_pos_old to skip first data part.
-        (temp_buffer_step - temp_buffer_step_pos_old) as u64,
+        (temp_buffer_step - temp_buffer_step_pos_old + 1) as u64,
     );
     // 4. Else (step 1)
     // 6: 4.1. Move temp buffer position to start.
