@@ -455,7 +455,7 @@ pub fn init_machine_end_pos_stage(
             output_4,
             output_6,
             output_6_1,
-            output_7.clone(),
+            output_7,
         ]
     } else {
         vec![
@@ -467,7 +467,7 @@ pub fn init_machine_end_pos_stage(
             output_4.clone(),
             output_4,
             output_6,
-            output_7.clone(),
+            output_7,
         ]
     };
     // extend to 16 elements
