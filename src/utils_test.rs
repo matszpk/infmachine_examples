@@ -230,7 +230,7 @@ fn gen_init_machine_end_pos_one_test(
             max_temp_buffer_len: temp_buffer_len,
         },
     );
-    mobj.in_state = Some(UDynVarSys::var(2));
+    mobj.in_state = Some(UDynVarSys::var(1));
     let mut mach_input = mobj.input();
     // first stage
     let (output_1, _) = init_machine_end_pos_stage(
@@ -348,6 +348,24 @@ fn main() {
                 .unwrap())
             );
         }
+        // "copy_proc_id_to_temp_buffer" => {
+        //     let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+        //     let temp_buffer_step_pos: u32 = args.next().unwrap().parse().unwrap();
+        //     assert_ne!(temp_buffer_step, 0);
+        //     print!(
+        //         "{}",
+        //         callsys(|| gen_copy_proc_id_to_temp_buffer_test(
+        //             cell_len_bits,
+        //             data_part_len,
+        //             temp_buffer_len,
+        //             proc_num,
+        //             mem_size,
+        //             temp_buffer_step,
+        //             temp_buffer_step_pos,
+        //         )
+        //         .unwrap())
+        //     );
+        // }
         _ => {
             panic!("Unknown example");
         }
