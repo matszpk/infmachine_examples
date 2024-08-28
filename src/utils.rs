@@ -282,12 +282,17 @@ pub fn init_machine_end_pos_stage(
     let config = input.config();
     let cell_len = 1 << config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
-    extend_output_state(state_start, 5 + cell_len, input);
-    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
-    let is_proc_id = input.state.bit(state_start + 4);
-    let value_count = input.state.clone().subvalue(state_start + 5, cell_len);
+    type StageType = U4VarSys;
+    extend_output_state(state_start, StageType::BITS + 1 + cell_len, input);
+    let stage =
+        StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
+    let is_proc_id = input.state.bit(state_start + StageType::BITS);
+    let value_count = input
+        .state
+        .clone()
+        .subvalue(state_start + StageType::BITS + 1, cell_len);
     let output_base = InfParOutputSys::new(config);
-    let create_out_state = |s: U4VarSys, ip, v| {
+    let create_out_state = |s: StageType, ip, v| {
         output_state
             .clone()
             .concat(s.into())
@@ -306,7 +311,7 @@ pub fn init_machine_end_pos_stage(
     let mut output_tshift = output_base.clone();
     if config.data_part_len == 1 {
         output_tshift.state = create_out_state(
-            U4VarSys::from(1u8),
+            StageType::from(1u8),
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         );
@@ -320,7 +325,7 @@ pub fn init_machine_end_pos_stage(
     // 0: 1. Load cell from memory.
     let mut output_0 = output_base.clone();
     output_0.state = create_out_state(
-        U4VarSys::from(tidx + 1u8),
+        StageType::from(tidx + 1u8),
         is_proc_id.clone(),
         UDynVarSys::from_n(0u8, cell_len),
     );
@@ -331,9 +336,9 @@ pub fn init_machine_end_pos_stage(
         int_ite(
             (&input.memval).equal(0u8),
             // end of algorithm
-            U4VarSys::from(tidx + 5u8),
+            StageType::from(tidx + 5u8),
             // start move temp buffer position
-            U4VarSys::from(tidx + 2u8),
+            StageType::from(tidx + 2u8),
         ),
         is_proc_id.clone(),
         input.memval.clone(),
@@ -342,7 +347,7 @@ pub fn init_machine_end_pos_stage(
     // 3.1. Decrease this value.
     let mut output_2 = output_base.clone();
     output_2.state = create_out_state(
-        U4VarSys::from(tidx + 3u8),
+        StageType::from(tidx + 3u8),
         is_proc_id.clone(),
         &value_count - 1u8,
     );
@@ -350,14 +355,14 @@ pub fn init_machine_end_pos_stage(
     let next_stage_3 = int_ite(
         (&value_count).equal(0u8),
         // if end of value_count then increase mem address
-        U4VarSys::from(tidx + 4u8),
+        StageType::from(tidx + 4u8),
         // continue
-        U4VarSys::from(tidx + 2u8),
+        StageType::from(tidx + 2u8),
     );
     // 4. If cell==0 then:
     let (output_3, _) = move_data_pos_stage(
         create_out_state(
-            U4VarSys::from(tidx + 3u8),
+            StageType::from(tidx + 3u8),
             is_proc_id.clone(),
             value_count.clone(),
         ),
@@ -374,8 +379,8 @@ pub fn init_machine_end_pos_stage(
         create_out_state(
             int_ite(
                 (&stage).equal(tidx + 5u8),
-                U4VarSys::from(tidx + 6u8),
-                U4VarSys::from(tidx + 1u8),
+                StageType::from(tidx + 6u8),
+                StageType::from(tidx + 1u8),
             ),
             is_proc_id.clone(),
             value_count.clone(),
@@ -389,7 +394,7 @@ pub fn init_machine_end_pos_stage(
         // if data_part_len > 1: read temp buffer part
         let mut output_6 = output_base.clone();
         output_6.state = create_out_state(
-            U4VarSys::from(tidx + 7u8),
+            StageType::from(tidx + 7u8),
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         );
@@ -398,7 +403,7 @@ pub fn init_machine_end_pos_stage(
         // and or value with current data part and 2
         let mut output_6_1 = output_base.clone();
         output_6_1.state = create_out_state(
-            U4VarSys::from(tidx + 8u8),
+            StageType::from(tidx + 8u8),
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         );
@@ -414,7 +419,7 @@ pub fn init_machine_end_pos_stage(
         // if data_part_len == 1: Set 1 to current temp buffer part.
         let mut output_6 = output_base.clone();
         output_6.state = create_out_state(
-            U4VarSys::from(tidx + 7u8),
+            StageType::from(tidx + 7u8),
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         );
@@ -426,12 +431,12 @@ pub fn init_machine_end_pos_stage(
     // 7. Move temp buffer part pos to start.
     let (output_7, end_7) = data_pos_to_start_stage(
         create_out_state(
-            U4VarSys::from(tidx + 7u8),
+            StageType::from(tidx + 7u8),
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         ),
         create_out_state(
-            U4VarSys::from(0u8),
+            StageType::from(0u8),
             !&is_proc_id,
             UDynVarSys::from_n(0u8, cell_len),
         ),
@@ -494,8 +499,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     let config = input.config();
     let cell_len = 1 << config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
-    extend_output_state(state_start, 5 + cell_len, input);
     type StageType = U4VarSys;
+    extend_output_state(state_start, 5 + cell_len, input);
     let stage = StageType::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
     // Algorithm:
     // 1. Load temp_buffer data part.
