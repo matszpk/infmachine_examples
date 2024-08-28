@@ -241,13 +241,13 @@ pub fn seq_increase_mem_address_stage(
 // Information about MemAddressEndPos in memory:
 // At memory address 0: sequences of values between 1..=MAX and one zero,
 // MemAddressPosEndPos is sum of non-zero cells.
-// If cell_len=1 then: sequences of 1 and one zero. MemAddressPosEndPos is number of 1's.
 
 // init_proc_id_end_pos - initialize proc id end position from memory.
 // Information about ProcIdEndPos in memory: This same as in MemAddressEndPos and start
 // after MemAddressEndPos in memory.
 
-// join together init_mem_address_end_pos and init_proc_id_end_pos
+// Join together init_mem_address_end_pos and init_proc_id_end_pos.
+// First is mem_address_end_pos, second is proc_id_pos.
 pub fn init_machine_end_pos_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
