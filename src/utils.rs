@@ -280,7 +280,7 @@ pub fn init_machine_end_pos_stage(
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     let config = input.config();
-    let cell_len = 1 << config.cell_len_bits as usize;
+    let cell_len = 1 << config.cell_len_bits;
     let state_start = output_state.bitnum();
     type StageType = U4VarSys;
     extend_output_state(state_start, StageType::BITS + 1 + cell_len, input);
@@ -497,11 +497,21 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     let config = input.config();
-    let cell_len = 1 << config.cell_len_bits as usize;
+    let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
     type StageType = U4VarSys;
-    extend_output_state(state_start, 5 + cell_len, input);
-    let stage = StageType::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
+    extend_output_state(state_start, StageType::BITS + dp_len, input);
+    let stage =
+        StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
+    let value = input.state.clone().subvalue(state_start + StageType::BITS, dp_len);
+    // start
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state = |s: StageType, v| {
+        output_state
+            .clone()
+            .concat(s.into())
+            .concat(v)
+    };
     // Algorithm:
     // 1. Load temp_buffer data part.
     // 2. If data_part==0: then:
