@@ -452,3 +452,45 @@ pub fn init_machine_end_pos_stage(
         end,
     )
 }
+
+// parallel routines
+
+// temp_buffer_step - number of different datas in temp_buffer.
+//                    number of step between next data part of same type.
+// temp_buffer_step_pos - position of data in step: from 0 to temp_buffer_step - 1 inclusively.
+
+pub fn par_copy_proc_id_to_temp_buffer_stage(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    temp_buffer_step_pos: u32,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_ne!(temp_buffer_step, 0);
+    let config = input.config();
+    let cell_len = 1 << config.cell_len_bits as usize;
+    let state_start = output_state.bitnum();
+    extend_output_state(state_start, 5 + cell_len, input);
+    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
+    // Algorithm
+    // 1. Load proc_id data_part.
+    // 2. Store data part into current temp buffer position.
+    // 3. Move forward proc id position.
+    // 4. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
+    // 5. Load temp_buffer data part.
+    // 6. If data_part==0: then:
+    // 6.1. Move temp buffer position forward by temp_buffer_step_pos and go to 1.
+    // 7. Else
+    // 7.1. Move temp buffer position to start.
+    // 7.2. Move proc id position to start.
+    // 7.3. End of algorithm.
+    finish_stage_with_table(
+        output_state,
+        next_state,
+        input,
+        vec![],
+        stage.into(),
+        true.into(),
+    )
+}
