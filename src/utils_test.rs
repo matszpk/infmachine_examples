@@ -283,11 +283,10 @@ fn gen_init_machine_end_pos_one_test(
     );
     mobj.in_state = Some(UDynVarSys::var(2));
     let mut mach_input = mobj.input();
-    let unused_bit = UDynVarSys::filled(1, unused_inputs(&mobj, mach_input.state.bit(0)));
     // first stage
     let (output_1, _) = init_machine_end_pos_stage(
-        unused_bit.clone().concat(UDynVarSys::from_n(0u8, 1)),
-        unused_bit.clone().concat(UDynVarSys::from_n(1u8, 1)),
+        UDynVarSys::from_n(0u8, 1),
+        UDynVarSys::from_n(1u8, 1),
         &mut mach_input,
         temp_buffer_step,
     );
@@ -298,7 +297,7 @@ fn gen_init_machine_end_pos_one_test(
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
     let final_state = dynint_table(
-        mach_input.state.clone().subvalue(1, 1),
+        mach_input.state.clone().subvalue(0, 1),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
     mobj.in_state = Some(mach_input.state);

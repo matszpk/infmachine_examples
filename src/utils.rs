@@ -617,7 +617,11 @@ pub fn init_machine_end_pos_stage(
             is_proc_id.clone(),
             UDynVarSys::from_n(0u8, cell_len),
         );
-        output_6_1.dpval = UDynVarSys::from_n(2u8, config.data_part_len as usize) | &input.dpval;
+        output_6_1.dpval = dynint_ite(
+            is_proc_id.clone(),
+            UDynVarSys::from_n(2u8, config.data_part_len as usize),
+            UDynVarSys::from_n(1u8, config.data_part_len as usize),
+        ) | &input.dpval;
         output_6_1.dkind = DKIND_TEMP_BUFFER.into();
         output_6_1.dpw = true.into();
         (output_6, output_6_1, tidx + 1)
@@ -642,7 +646,7 @@ pub fn init_machine_end_pos_stage(
             UDynVarSys::from_n(0u8, cell_len),
         ),
         create_out_state(
-            U4VarSys::from(tidx + 0u8),
+            U4VarSys::from(0u8),
             !&is_proc_id,
             UDynVarSys::from_n(0u8, cell_len),
         ),
