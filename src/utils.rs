@@ -226,19 +226,15 @@ pub fn seq_increase_mem_address_stage(
         DKIND_MEM_ADDRESS,
     );
     let end = (&stage).equal(U2VarSys::from(2u8)) & end;
-    let mut output_stages = vec![output_0, output_1, output_2.clone(), output_2];
-    InfParOutputSys::fix_state_len(&mut output_stages);
-    // Use output state outside joining outputs to reduce gates. It is possible because
-    // first outputs are state outputs.
-    let final_state = output_state.concat(dynint_table(
+    let output_stages = vec![output_0, output_1, output_2];
+    finish_stage_with_table(
+        output_state,
+        next_state,
+        input,
+        output_stages,
         stage.into(),
-        output_stages.into_iter().map(|v| {
-            let state_int = v.to_dynintvar();
-            state_int.subvalue(state_start, state_int.bitnum() - state_start)
-        }),
-    ));
-    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
-    (join_stage(next_state, output, end.clone()), end)
+        end,
+    )
 }
 
 // init_mem_address_end_pos - initialize memory address end position from memory.
@@ -421,7 +417,7 @@ pub fn init_machine_end_pos_stage(
     );
     let end = is_proc_id & end_7 & (&stage).equal(tidx + 7u8);
     // finishing
-    let mut output_stages = if config.data_part_len > 1 {
+    let output_stages = if config.data_part_len > 1 {
         vec![
             output_0,
             output_1,
@@ -447,17 +443,12 @@ pub fn init_machine_end_pos_stage(
         ]
     };
     // extend to 16 elements
-    output_stages.extend(std::iter::repeat(output_7).take(16 - 9));
-    InfParOutputSys::fix_state_len(&mut output_stages);
-    // Use output state outside joining outputs to reduce gates. It is possible because
-    // first outputs are state outputs.
-    let final_state = output_state.concat(dynint_table(
+    finish_stage_with_table(
+        output_state,
+        next_state,
+        input,
+        output_stages,
         stage.into(),
-        output_stages.into_iter().map(|v| {
-            let state_int = v.to_dynintvar();
-            state_int.subvalue(state_start, state_int.bitnum() - state_start)
-        }),
-    ));
-    let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
-    (join_stage(next_state, output, end.clone()), end)
+        end,
+    )
 }
