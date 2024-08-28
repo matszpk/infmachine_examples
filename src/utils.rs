@@ -209,10 +209,13 @@ pub fn seq_increase_mem_address_stage(
     let end = (&stage).equal(U2VarSys::from(2u8)) & end;
     let mut output_stages = vec![output_0, output_1, output_2.clone(), output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = output_state.concat(dynint_table(
         stage.into(),
-        output_stages.into_iter().map(|v| v.to_dynintvar()),
-    );
+        output_stages.into_iter().map(|v| {
+            let state_int = v.to_dynintvar();
+            state_int.subvalue(state_start, state_int.bitnum() - state_start)
+        }),
+    ));
     let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
     (join_stage(next_state, output, end.clone()), end)
 }
