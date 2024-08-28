@@ -496,6 +496,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
+    assert_ne!(temp_buffer_step_pos, 0);
+    assert!(temp_buffer_step_pos < temp_buffer_step);
     let config = input.config();
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
@@ -513,6 +515,25 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
             .concat(v)
     };
     // Algorithm:
+    // 0. If data_part_len == 1: Make forward temp_buffer_pos to move to proc_id end marker.
+    // tidx - stage index for main routine
+    let tidx = if config.data_part_len <= 1 {
+        assert!(temp_buffer_step >= 2);
+        assert!(temp_buffer_step_pos >= 2);
+        1u8
+    } else {
+        0u8
+    };
+    // make temp buffer position to 1.
+    let mut output_tshift = output_base.clone();
+    if config.data_part_len == 1 {
+        output_tshift.state = create_out_state(
+            StageType::from(1u8),
+            UDynVarSys::from_n(0u8, dp_len),
+        );
+        output_tshift.dpmove = U2VarSys::from(DPMOVE_FORWARD);
+        output_tshift.dkind = DKIND_TEMP_BUFFER.into();
+    }
     // 1. Load temp_buffer data part.
     // 2. If data_part==0: then:
     // 3.1. Move temp buffer position forward by temp_buffer_step_pos and go to 5.
