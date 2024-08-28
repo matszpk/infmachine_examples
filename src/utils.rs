@@ -539,7 +539,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     output_1.state = create_out_state(int_ite(
         no_end_of_proc_id,
         StageType::from(tidx + 2u8),
-        StageType::from(tidx + 7u8),
+        StageType::from(tidx + 6u8),
     ));
     // 2: 3.1. Move temp buffer position forward by temp_buffer_step_pos.
     let (output_2, _) = move_data_pos_stage(
@@ -577,7 +577,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     // 6: 4.1. Move temp buffer position to start.
     let (output_6, _) = data_pos_to_start_stage(
         create_out_state(stage.clone()),
-        create_out_state(StageType::from(tidx + 4u8)),
+        create_out_state(StageType::from(tidx + 7u8)),
         input,
         DKIND_TEMP_BUFFER,
     );
