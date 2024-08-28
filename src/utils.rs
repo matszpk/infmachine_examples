@@ -495,7 +495,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     let cell_len = 1 << config.cell_len_bits as usize;
     let state_start = output_state.bitnum();
     extend_output_state(state_start, 5 + cell_len, input);
-    let stage = U4VarSys::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
+    type StageType = U4VarSys;
+    let stage = StageType::try_from(input.state.clone().subvalue(state_start, 4)).unwrap();
     // Algorithm:
     // 1. Load temp_buffer data part.
     // 2. If data_part==0: then:
