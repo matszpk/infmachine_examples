@@ -611,6 +611,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
 
 // par_copy_proc_id_to_mem_address_stage - copy proc_id to mem_address.
 // Include mem_address_pos_end.
+// TODO: Fix to include proc_id_pos_end.
+//       if mem_address_pos_end is greater then fill rest by zeroes.
 pub fn par_copy_proc_id_to_mem_address_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
