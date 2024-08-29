@@ -620,7 +620,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     let config = input.config();
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
-    type StageType = U3VarSys;
+    type StageType = U4VarSys;
     extend_output_state(state_start, StageType::BITS, input);
     let stage =
         StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
@@ -687,25 +687,32 @@ pub fn par_copy_proc_id_to_mem_address_stage(
         temp_buffer_step as u64,
     );
     // 9. Else (step 1)
-    // 5: 10. Move temp buffer position to start.
+    // 5: 10. Move mem address position to start.
     let (output_5, _) = data_pos_to_start_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(tidx + 6u8)),
         input,
+        DKIND_MEM_ADDRESS,
+    );
+    // 6: 11. Move temp buffer position to start.
+    let (output_6, _) = data_pos_to_start_stage(
+        create_out_state(stage.clone()),
+        create_out_state(StageType::from(tidx + 7u8)),
+        input,
         DKIND_TEMP_BUFFER,
     );
-    // 6: 11. Move proc id position to start.
-    let (output_6, end_6) = data_pos_to_start_stage(
+    // 7: 12. Move proc id position to start.
+    let (output_7, end_7) = data_pos_to_start_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(0u8)),
         input,
         DKIND_PROC_ID,
     );
-    // 12. End of algorithm.
-    let end = end_6 & (&stage).equal(tidx + 6u8);
+    // 13. End of algorithm.
+    let end = end_7 & (&stage).equal(tidx + 7u8);
     // finishing
     let mut output_stages = vec![
-        output_0, output_1, output_2, output_3, output_4, output_5, output_6,
+        output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
     ];
     if config.data_part_len <= 1 {
         output_stages.insert(0, output_tshift);
