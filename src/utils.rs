@@ -1043,7 +1043,7 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
         input,
         DKIND_TEMP_BUFFER,
     );
-    // 12. End of algorithm.
+    // 11. End of algorithm.
     let end = end_8 & (&stage).equal(tidx + 8u8);
     // finishing
     let mut output_stages = vec![
