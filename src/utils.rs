@@ -976,10 +976,19 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
     output_0.dkind = DKIND_TEMP_BUFFER.into();
     output_0.dpr = true.into();
     // 1: 2. If data_part==0: then:
+    let no_end_pos = if dp_len == 1 {
+        !(&input.dpval).bit(0)
+    } else {
+        if proc_id_end_pos {
+            !(&input.dpval).bit(1)
+        } else {
+            !(&input.dpval).bit(0)
+        }
+    };
     let mut output_1 = output_base.clone();
     output_1.state = create_out_state(
         int_ite(
-            !(&input.dpval).bit(0),
+            no_end_pos,
             StageType::from(tidx + 2u8),
             // go to 9.
             StageType::from(tidx + 8u8),
