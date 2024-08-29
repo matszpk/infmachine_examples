@@ -1020,25 +1020,17 @@ pub fn par_copy_temp_buffer_to_temp_buffer_me_stage(
     );
     // 9. Else (step 1)
     // 8: 10. Move temp buffer position to start.
-    let (output_8, _) = data_pos_to_start_stage(
-        create_out_state(stage.clone(), value_zero.clone()),
-        create_out_state(StageType::from(7u8), value_zero.clone()),
-        input,
-        DKIND_TEMP_BUFFER,
-    );
-    // 9: 11. Move proc id position to start.
-    let (output_9, end_9) = data_pos_to_start_stage(
+    let (output_8, end_8) = data_pos_to_start_stage(
         create_out_state(stage.clone(), value_zero.clone()),
         create_out_state(StageType::from(0u8), value_zero.clone()),
         input,
-        DKIND_MEM_ADDRESS,
+        DKIND_TEMP_BUFFER,
     );
     // 12. End of algorithm.
-    let end = end_9 & (&stage).equal(9u8);
+    let end = end_8 & (&stage).equal(8u8);
     // finishing
     let output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
-        output_9,
     ];
     finish_stage_with_table(
         output_state,
