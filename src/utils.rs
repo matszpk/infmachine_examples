@@ -769,7 +769,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     output_4.dkind = DKIND_MEM_ADDRESS.into();
     output_4.dpw = true.into();
     output_4.dpval = input.dpval.clone();
-    output_3.dpmove = DPMOVE_FORWARD.into();
+    output_4.dpmove = DPMOVE_FORWARD.into();
     // 5: 7. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
     // 5: 8. Go to 1.
     let (output_5, _) = move_data_pos_stage(
