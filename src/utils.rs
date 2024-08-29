@@ -950,17 +950,17 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
     // Algorithm:
     // 0. If data_part_len == 1: Make forward temp_buffer_pos to move to proc_id end marker.
     // tidx - stage index for main routine
-    let (tidx, tbs_src_pos) = if dp_len <= 1 {
+    let (tidx, tbs_src_pos, tbs_dest_pos) = if dp_len <= 1 {
         assert!(temp_buffer_step >= 2);
         assert!(tbs_src_pos >= 2);
         assert!(tbs_dest_pos >= 2);
         if proc_id_end_pos {
-            (1u8, tbs_src_pos - 1)
+            (1u8, tbs_src_pos - 1, tbs_dest_pos - 1)
         } else {
-            (0u8, tbs_src_pos)
+            (0u8, tbs_src_pos, tbs_dest_pos)
         }
     } else {
-        (0u8, tbs_src_pos)
+        (0u8, tbs_src_pos, tbs_dest_pos)
     };
     // make temp buffer position to 1.
     let mut output_tshift = output_base.clone();
