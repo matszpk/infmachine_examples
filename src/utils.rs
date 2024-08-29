@@ -629,6 +629,9 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     // start
     let output_base = InfParOutputSys::new(config);
     let create_out_state = |s: StageType| output_state.clone().concat(s.into());
+    if config.data_part_len <= 1 {
+        assert!(temp_buffer_step >= 2);
+    };
     // Algorithm:
     // 0: 1. Load temp_buffer data part.
     let mut output_0 = output_base.clone();
@@ -729,6 +732,10 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     // start
     let output_base = InfParOutputSys::new(config);
     let create_out_state = |s: StageType| output_state.clone().concat(s.into());
+    if config.data_part_len <= 1 {
+        assert!(temp_buffer_step >= 2);
+        assert!(temp_buffer_step_pos >= 2);
+    };
     // Algorithm:
     // 0: 1. Load temp_buffer data part.
     let mut output_0 = output_base.clone();
