@@ -620,7 +620,6 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     let config = input.config();
-    let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
     type StageType = U3VarSys;
     extend_output_state(state_start, StageType::BITS, input);
@@ -696,7 +695,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     // 13. End of algorithm.
     let end = end_7 & (&stage).equal(7u8);
     // finishing
-    let mut output_stages = vec![
+    let output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
     ];
     finish_stage_with_table(
@@ -723,7 +722,6 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     assert_ne!(temp_buffer_step_pos, 0);
     assert!(temp_buffer_step_pos < temp_buffer_step);
     let config = input.config();
-    let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
     type StageType = U3VarSys;
     extend_output_state(state_start, StageType::BITS, input);
@@ -800,7 +798,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     // 12. End of algorithm.
     let end = end_7 & (&stage).equal(7u8);
     // finishing
-    let mut output_stages = vec![
+    let output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
     ];
     finish_stage_with_table(
