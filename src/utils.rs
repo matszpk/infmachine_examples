@@ -915,7 +915,8 @@ pub fn par_copy_mem_address_to_temp_buffer_stage(
 }
 
 // par_copy_temp_buffer_to_temp_buffer_stage - copy mem_address to temp_buffer
-// _me suffix - include mem_address_pos_end.
+// proc_id_end_pos - if value true then use proc_id_end_pos to determine length
+// otherwise use mem_address_end_pos to determine length.
 pub fn par_copy_temp_buffer_to_temp_buffer_stage(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
