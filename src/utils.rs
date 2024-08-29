@@ -540,9 +540,10 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     output_1.state = create_out_state(int_ite(
         no_end_of_proc_id,
         StageType::from(tidx + 2u8),
+        // go to 9.
         StageType::from(tidx + 6u8),
     ));
-    // 2: 3.1. Move temp buffer position forward by temp_buffer_step_pos.
+    // 2: 3. Move temp buffer position forward by temp_buffer_step_pos.
     let (output_2, _) = move_data_pos_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(tidx + 3u8)),
@@ -551,7 +552,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
         DPMOVE_FORWARD,
         temp_buffer_step_pos as u64,
     );
-    // 3: 5. Load proc_id data_part.
+    // 3: 4. Load proc_id data_part.
+    // 5. Move forward proc id position.
     let mut output_3 = output_base.clone();
     output_3.state = create_out_state(StageType::from(tidx + 4u8));
     output_3.dkind = DKIND_PROC_ID.into();
@@ -563,9 +565,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     output_4.dkind = DKIND_TEMP_BUFFER.into();
     output_4.dpw = true.into();
     output_4.dpval = input.dpval.clone();
-    // 7. Move forward proc id position.
-    // 5: 8. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
-    // 5: 9. Go to 1.
+    // 5: 7. Move temp_buffer position forward by (temp_buffer_step - temp_buffer_step_pos).
+    // 5: 8. Go to 1.
     let (output_5, _) = move_data_pos_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(tidx)),
@@ -574,22 +575,22 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
         DPMOVE_FORWARD,
         (temp_buffer_step - temp_buffer_step_pos) as u64,
     );
-    // 4. Else (step 1)
-    // 6: 4.1. Move temp buffer position to start.
+    // 9. Else (step 1)
+    // 6: 10. Move temp buffer position to start.
     let (output_6, _) = data_pos_to_start_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(tidx + 7u8)),
         input,
         DKIND_TEMP_BUFFER,
     );
-    // 4: 4.2. Move proc id position to start.
+    // 4: 11. Move proc id position to start.
     let (output_7, end_7) = data_pos_to_start_stage(
         create_out_state(stage.clone()),
         create_out_state(StageType::from(0u8)),
         input,
         DKIND_PROC_ID,
     );
-    // 4.3. End of algorithm.
+    // 12. End of algorithm.
     let end = end_7 & (&stage).equal(tidx + 7u8);
     // finishing
     let mut output_stages = vec![
