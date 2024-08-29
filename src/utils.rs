@@ -725,7 +725,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     let config = input.config();
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
-    type StageType = U4VarSys;
+    type StageType = U3VarSys;
     extend_output_state(state_start, StageType::BITS, input);
     let stage =
         StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
