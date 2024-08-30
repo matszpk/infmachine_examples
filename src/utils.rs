@@ -750,7 +750,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     ];
     if config.data_part_len <= 1 {
         // insert additional stage to routine
-        output_stages.insert(1, output_1_1);
+        output_stages.insert(2, output_1_1);
     }
     finish_stage_with_table(
         output_state,
