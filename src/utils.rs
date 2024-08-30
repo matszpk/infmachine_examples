@@ -550,21 +550,24 @@ impl Function1 for Add1Func {
         let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
         let state_len = self.state_len();
         // get current part of value to add to input.
+        let index = input_state.clone().subvalue(0, state_len - 1);
+        let old_carry = input_state.bit(state_len - 1);
         let adder = dynint_table_partial(
-            input_state.clone().subvalue(0, state_len - 1),
+            index.clone(),
             (0..max_state_count).map(|i| {
                 self.value.subvalue(
                     i * self.inout_len,
-                    std::cmp::min(i * self.inout_len, self.value.bitnum()),
+                    std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
+                        - i * self.inout_len,
                 )
             }),
             UDynVarSys::from_n(0u8, self.inout_len),
         );
-        let (result, carry) = i0.addc_with_carry(&adder, &input_state.bit(state_len - 1));
+        let (result, carry) = i0.addc_with_carry(&adder, &old_carry);
         let next_state = dynint_ite(
-            (&input_state).equal(max_state_count),
+            (&index).equal(max_state_count),
             UDynVarSys::from_n(max_state_count, state_len - 1),
-            &input_state + 1u8,
+            &index + 1u8,
         )
         .concat(UDynVarSys::filled(1, carry));
         (next_state, result)
