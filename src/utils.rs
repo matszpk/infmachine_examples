@@ -537,7 +537,11 @@ impl Add1Func {
     pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
         Self {
             inout_len,
-            value: UDynVarSys::from_n(value, calc_log_bits_u64(value)),
+            value: if value != 0 {
+                UDynVarSys::from_n(value, calc_log_bits_u64(value))
+            } else {
+                UDynVarSys::from_n(value, 1)
+            },
         }
     }
 }
