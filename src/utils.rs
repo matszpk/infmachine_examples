@@ -500,6 +500,68 @@ pub fn init_machine_end_pos_stage(
     )
 }
 
+// functions
+
+pub trait Function1 {
+    fn state_len(&self) -> usize;
+    // return (output state, output)
+    fn output(&self, i0: UDynVarSys, input_state: UDynVarSys) -> (UDynVarSys, UDynVarSys);
+}
+
+pub struct Copy1Func {}
+
+impl Copy1Func {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Function1 for Copy1Func {
+    fn state_len(&self) -> usize {
+        0
+    }
+    fn output(&self, i0: UDynVarSys, _: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        (UDynVarSys::var(0), i0)
+    }
+}
+
+pub struct Add1Func {
+    inout_len: usize,
+    value: UDynVarSys,
+}
+
+impl Add1Func {
+    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+        Self { inout_len, value }
+    }
+}
+
+impl Function1 for Add1Func {
+    fn state_len(&self) -> usize {
+        calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1)
+    }
+    fn output(&self, i0: UDynVarSys, input_state: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
+        let next_state = dynint_ite(
+            (&input_state).equal(max_state_count),
+            UDynVarSys::from_n(max_state_count, self.state_len()),
+            &input_state + 1u8,
+        );
+        // get current part of value to add to input.
+        let adder = dynint_table_partial(
+            input_state,
+            (0..max_state_count).map(|i| {
+                self.value.subvalue(
+                    i * self.inout_len,
+                    std::cmp::min(i * self.inout_len, self.value.bitnum()),
+                )
+            }),
+            UDynVarSys::from_n(0u8, self.inout_len),
+        );
+        (next_state, i0 + adder)
+    }
+}
+
 // parallel routines
 
 // temp_buffer_step - number of different datas in temp_buffer.
