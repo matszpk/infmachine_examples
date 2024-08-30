@@ -650,8 +650,10 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     output_0.state = create_out_state(StageType::from(1u8), dp_zero.clone());
     output_0.dkind = DKIND_TEMP_BUFFER.into();
     output_0.dpr = true.into();
-    // move forward temp buffer position to get proc_id_end_pos
-    output_0.dpmove = DPMOVE_FORWARD.into();
+    if config.data_part_len <= 1 {
+        // move forward temp buffer position to get proc_id_end_pos
+        output_0.dpmove = DPMOVE_FORWARD.into();
+    }
     // 1: 2. If data_part==0: then:
     let (output_1, output_1_1, tidx) = if config.data_part_len <= 1 {
         // make two steps because data_part have 1 bit
