@@ -714,7 +714,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     // 4: 8. Go to 1.
     let (output_4, _) = move_data_pos_stage(
         create_out_state(stage.clone(), dp_zero.clone()),
-        create_out_state(StageType::from(tidx + 0u8), dp_zero.clone()),
+        create_out_state(StageType::from(0u8), dp_zero.clone()),
         input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
