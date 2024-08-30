@@ -544,18 +544,14 @@ impl Add1Func {
 
 impl Function1 for Add1Func {
     fn state_len(&self) -> usize {
-        calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1)
+        calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1) + 1
     }
     fn output(&self, i0: UDynVarSys, input_state: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
         let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
-        let next_state = dynint_ite(
-            (&input_state).equal(max_state_count),
-            UDynVarSys::from_n(max_state_count, self.state_len()),
-            &input_state + 1u8,
-        );
+        let state_len = self.state_len();
         // get current part of value to add to input.
         let adder = dynint_table_partial(
-            input_state,
+            input_state.clone().subvalue(0, state_len - 1),
             (0..max_state_count).map(|i| {
                 self.value.subvalue(
                     i * self.inout_len,
@@ -564,7 +560,13 @@ impl Function1 for Add1Func {
             }),
             UDynVarSys::from_n(0u8, self.inout_len),
         );
-        (next_state, i0 + adder)
+        let (result, carry) = i0.addc_with_carry(&adder, &input_state.bit(state_len - 2));
+        let next_state = dynint_ite(
+            (&input_state).equal(max_state_count),
+            UDynVarSys::from_n(max_state_count, state_len - 1).concat(UDynVarSys::filled(1, carry)),
+            &input_state + 1u8,
+        );
+        (next_state, result)
     }
 }
 
