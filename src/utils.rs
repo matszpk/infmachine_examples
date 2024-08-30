@@ -989,6 +989,8 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
 
 // process routines
 
+// par_process_proc_id_to_temp_buffer_stage - process proc_id to temp buffer in specified pos.
+// temp_buffer_step_pos - position chunk (specify data position).
 pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -1120,7 +1122,7 @@ pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
     )
 }
 
-// par_process_proc_id_to_mem_address_stage - copy proc_id to mem_address.
+// par_process_proc_id_to_mem_address_stage - process proc_id to mem_address.
 // Include mem_address_pos_end and include proc_id_pos_end.
 // If mem_address_pos_end is greater then fill rest beyond proc_id_end_pos by zeroes.
 pub fn par_process_proc_id_to_mem_address_stage<F: Function1>(
