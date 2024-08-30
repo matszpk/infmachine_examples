@@ -669,8 +669,8 @@ pub fn par_copy_proc_id_to_mem_address_stage(
         // move forward temp buffer position to get proc_id_end_pos
         output_1.dpmove = DPMOVE_FORWARD.into();
         // next stage
-        let output_1_1 = output_base.clone();
-        output_1.state = create_out_state(
+        let mut output_1_1 = output_base.clone();
+        output_1_1.state = create_out_state(
             StageType::from(1 + 2u8),
             // update dp_zero: by joining with proc_id_end_pos marker
             &dp_zero | input.dpval.bit(0),
