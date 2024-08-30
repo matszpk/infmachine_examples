@@ -563,9 +563,10 @@ impl Function1 for Add1Func {
         let (result, carry) = i0.addc_with_carry(&adder, &input_state.bit(state_len - 1));
         let next_state = dynint_ite(
             (&input_state).equal(max_state_count),
-            UDynVarSys::from_n(max_state_count, state_len - 1).concat(UDynVarSys::filled(1, carry)),
+            UDynVarSys::from_n(max_state_count, state_len - 1),
             &input_state + 1u8,
-        );
+        )
+        .concat(UDynVarSys::filled(1, carry));
         (next_state, result)
     }
 }
