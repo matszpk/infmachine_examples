@@ -623,7 +623,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     let config = input.config();
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
-    type StageType = U3VarSys;
+    type StageType = U4VarSys;
     extend_output_state(state_start, StageType::BITS + 1, input);
     let stage =
         StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
