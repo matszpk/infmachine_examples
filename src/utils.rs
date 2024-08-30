@@ -555,11 +555,15 @@ impl Function1 for Add1Func {
         let adder = dynint_table_partial(
             index.clone(),
             (0..max_state_count).map(|i| {
-                self.value.subvalue(
-                    i * self.inout_len,
-                    std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
-                        - i * self.inout_len,
+                UDynVarSys::try_from_n(
+                    self.value.subvalue(
+                        i * self.inout_len,
+                        std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
+                            - i * self.inout_len,
+                    ),
+                    self.inout_len,
                 )
+                .unwrap()
             }),
             UDynVarSys::from_n(0u8, self.inout_len),
         );
@@ -1223,17 +1227,14 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
 
 // process routines
 
-pub fn par_process_proc_id_to_temp_buffer_stage<F>(
+pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys)
-where
-    F: Function1,
-{
+) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     assert_ne!(temp_buffer_step_pos, 0);
@@ -1346,6 +1347,186 @@ where
     ];
     if config.data_part_len <= 1 {
         output_stages.insert(0, output_tshift);
+    }
+    finish_stage_with_table(
+        output_state,
+        next_state,
+        input,
+        output_stages,
+        stage.into(),
+        end,
+    )
+}
+
+// par_process_proc_id_to_mem_address_stage - copy proc_id to mem_address.
+// Include mem_address_pos_end and include proc_id_pos_end.
+// If mem_address_pos_end is greater then fill rest beyond proc_id_end_pos by zeroes.
+pub fn par_process_proc_id_to_mem_address_stage<F: Function1>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_ne!(temp_buffer_step, 0);
+    let config = input.config();
+    let dp_len = config.data_part_len as usize;
+    let state_start = output_state.bitnum();
+    type StageType = U4VarSys;
+    extend_output_state(state_start, StageType::BITS + 1 + func.state_len(), input);
+    let stage =
+        StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
+    // dp_zero - if 1 - then zero data part stored to memory address
+    let dp_zero = input.state.bit(state_start + StageType::BITS);
+    let func_state = input
+        .state
+        .clone()
+        .subvalue(state_start + StageType::BITS + 1, func.state_len());
+    // start
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state = |s: StageType, dpz, fs| {
+        output_state
+            .clone()
+            .concat(s.into())
+            .concat(UDynVarSys::filled(1, dpz))
+            .concat(fs)
+    };
+    // temp_buffer_step_fixed - fixed if temp buffer position is 1 (dp_len=1).
+    let temp_buffer_step_fixed = if config.data_part_len <= 1 {
+        assert!(temp_buffer_step >= 2);
+        temp_buffer_step - 1
+    } else {
+        temp_buffer_step
+    };
+    // Algorithm:
+    // 0: 1. Load temp_buffer data part.
+    let mut output_0 = output_base.clone();
+    output_0.state = create_out_state(StageType::from(1u8), dp_zero.clone(), func_state.clone());
+    output_0.dkind = DKIND_TEMP_BUFFER.into();
+    output_0.dpr = true.into();
+    if config.data_part_len <= 1 {
+        // move forward temp buffer position to get proc_id_end_pos
+        output_0.dpmove = DPMOVE_FORWARD.into();
+    }
+    // 1: 2. If data_part==0: then:
+    let (output_1, output_1_1, tidx) = if config.data_part_len <= 1 {
+        // make two steps because data_part have 1 bit
+        let mut output_1 = output_base.clone();
+        output_1.state = create_out_state(
+            int_ite(
+                !(&input.dpval).bit(0),
+                StageType::from(2u8),
+                // go to 9.
+                StageType::from(1 + 5u8),
+            ),
+            dp_zero.clone(),
+            func_state.clone(),
+        );
+        // load proc_id position end pos and update dp_zero
+        output_1.dkind = DKIND_TEMP_BUFFER.into();
+        output_1.dpr = true.into();
+        // next stage
+        let mut output_1_1 = output_base.clone();
+        output_1_1.state = create_out_state(
+            StageType::from(1 + 2u8),
+            // update dp_zero: by joining with proc_id_end_pos marker
+            &dp_zero | input.dpval.bit(0),
+            func_state.clone(),
+        );
+        (output_1, output_1_1, 1)
+    } else {
+        // normal if data_part can hold two bits
+        let mut output_1 = output_base.clone();
+        output_1.state = create_out_state(
+            int_ite(
+                !(&input.dpval).bit(0),
+                StageType::from(2u8),
+                // go to 9.
+                StageType::from(5u8),
+            ),
+            // update dp_zero: by joining with proc_id_end_pos marker
+            &dp_zero | input.dpval.bit(1),
+            func_state.clone(),
+        );
+        (output_1.clone(), output_1, 0)
+    };
+    // 2: 3. Load proc_id data_part.
+    // 2: 4. Move forward proc id position.
+    let mut output_2 = output_base.clone();
+    output_2.state = create_out_state(
+        StageType::from(tidx + 3u8),
+        dp_zero.clone(),
+        func_state.clone(),
+    );
+    output_2.dkind = DKIND_PROC_ID.into();
+    output_2.dpr = true.into();
+    output_2.dpmove = DPMOVE_FORWARD.into();
+    // 3: 4. Store data part into current temp buffer position.
+    // 3: 5. Move mem_address position forward.
+    let (out_func_state, out_value) = func.output(
+        func_state.clone(),
+        dynint_ite(
+            dp_zero.clone(),
+            UDynVarSys::from_n(0u8, dp_len),
+            input.dpval.clone(),
+        ),
+    );
+    let mut output_3 = output_base.clone();
+    output_3.state = create_out_state(StageType::from(tidx + 4u8), dp_zero.clone(), out_func_state);
+    output_3.dkind = DKIND_MEM_ADDRESS.into();
+    output_3.dpw = true.into();
+    output_3.dpval = out_value;
+    output_3.dpmove = DPMOVE_FORWARD.into();
+    // 4: 7. Move temp_buffer position forward by temp_buffer_step.
+    // 4: 8. Go to 1.
+    let (output_4, _) = move_data_pos_stage(
+        create_out_state(stage.clone(), dp_zero.clone(), func_state.clone()),
+        create_out_state(StageType::from(0u8), dp_zero.clone(), func_state.clone()),
+        input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        temp_buffer_step_fixed as u64,
+    );
+    // 9. Else (step 1)
+    // 5: 10. Move mem address position to start.
+    let (output_5, _) = data_pos_to_start_stage(
+        create_out_state(stage.clone(), dp_zero.clone(), func_state.clone()),
+        create_out_state(
+            StageType::from(tidx + 6u8),
+            dp_zero.clone(),
+            func_state.clone(),
+        ),
+        input,
+        DKIND_MEM_ADDRESS,
+    );
+    // 6: 11. Move temp buffer position to start.
+    let (output_6, _) = data_pos_to_start_stage(
+        create_out_state(stage.clone(), dp_zero.clone(), func_state.clone()),
+        create_out_state(
+            StageType::from(tidx + 7u8),
+            dp_zero.clone(),
+            func_state.clone(),
+        ),
+        input,
+        DKIND_TEMP_BUFFER,
+    );
+    // 7: 12. Move proc id position to start.
+    let (output_7, end_7) = data_pos_to_start_stage(
+        create_out_state(stage.clone(), dp_zero.clone(), func_state.clone()),
+        create_out_state(StageType::from(0u8), dp_zero.clone(), func_state.clone()),
+        input,
+        DKIND_PROC_ID,
+    );
+    // 13. End of algorithm.
+    let end = end_7 & (&stage).equal(tidx + 7u8);
+    // finishing
+    let mut output_stages = vec![
+        output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
+    ];
+    if config.data_part_len <= 1 {
+        // insert additional stage to routine
+        output_stages.insert(2, output_1_1);
     }
     finish_stage_with_table(
         output_state,
