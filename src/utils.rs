@@ -508,23 +508,6 @@ pub trait Function1 {
     fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys);
 }
 
-pub struct Zero1Func {}
-
-impl Zero1Func {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Function1 for Zero1Func {
-    fn state_len(&self) -> usize {
-        0
-    }
-    fn output(&self, _: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
-        (UDynVarSys::var(0), UDynVarSys::from_n(0u8, i0.bitnum()))
-    }
-}
-
 pub struct Copy1Func {}
 
 impl Copy1Func {
