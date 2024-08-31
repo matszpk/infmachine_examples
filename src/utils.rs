@@ -1361,7 +1361,7 @@ pub fn par_process_mem_address_to_temp_buffer_stage<F: Function1>(
 // par_process_temp_buffer_to_temp_buffer_stage - process temp_buffer to temp_buffer
 // proc_id_end_pos - if value true then use proc_id_end_pos to determine length
 // otherwise use mem_address_end_pos to determine length.
-pub fn par_process_temp_buffer_to_temp_buffer_stage(
+pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
@@ -1370,6 +1370,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage(
     tbs_dest_pos: u32,
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
+    func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
     // TODO: Rewrite this routine.
     assert_eq!(output_state.bitnum(), next_state.bitnum());
