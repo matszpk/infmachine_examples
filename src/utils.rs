@@ -1372,7 +1372,6 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     dest_proc_id_end_pos: bool,
     func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
-    // TODO: Rewrite this routine.
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
     assert_ne!(tbs_src_pos, 0);
@@ -1421,7 +1420,6 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         assert!(tbs_src_pos >= 2);
         assert!(tbs_dest_pos >= 2);
     }
-    // TODO: Rewrite this part.
     // 0: 0. Read first memory end pos.
     let mut output_0 = output_base.clone();
     output_0.state = create_out_state(
@@ -1440,11 +1438,11 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     let tidx = if dp_len <= 1 {
         output_0_1.state = create_out_state(
             if dest_proc_id_end_pos {
-                StageType::from(2u8)
+                StageType::from(1 + 1u8)
             } else {
                 int_ite(
                     !(&input.dpval).bit(0),
-                    StageType::from(1 + 2u8),
+                    StageType::from(1 + 1u8),
                     StageType::from(1 + 8u8),
                 )
             },
@@ -1489,7 +1487,19 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
             )
         },
         value_zero.clone(),
-        dp_zero.clone(),
+        if dp_len <= 1 {
+            if src_proc_id_end_pos {
+                &dp_zero | input.dpval.bit(0)
+            } else {
+                dp_zero.clone()
+            }
+        } else {
+            if src_proc_id_end_pos {
+                &dp_zero | input.dpval.bit(1)
+            } else {
+                &dp_zero | input.dpval.bit(0)
+            }
+        },
         func_state.clone(),
     );
     // 3: 3. Move temp buffer position forward by tbs_src_pos.
@@ -1526,12 +1536,16 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     output_3.dkind = DKIND_TEMP_BUFFER.into();
     output_3.dpr = true.into();
     // 5: 5. Store data part into state value
+    let (out_func_state, out_value) = func.output(
+        func_state.clone(),
+        dynint_ite(dp_zero.clone(), value_zero.clone(), input.dpval.clone()),
+    );
     let mut output_4 = output_base.clone();
     output_4.state = create_out_state(
         StageType::from(tidx + 5u8),
-        input.dpval.clone(),
+        out_value,
         dp_zero.clone(),
-        func_state.clone(),
+        out_func_state,
     );
     // 6: 6. Move temp_buffer position forward to tbs_dest_pos.
     let (output_5, _) = move_data_pos_stage(
