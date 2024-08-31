@@ -1438,22 +1438,24 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     // 0_1: 1. Load temp_buffer data part.
     let mut output_0_1 = output_base.clone();
     let tidx = if dp_len <= 1 {
-        if src_proc_id_end_pos {
-            output_0_1.state = create_out_state(
-                StageType::from(2u8),
-                value_zero.clone(),
-                dp_zero.clone(),
-                func_state.clone(),
-            );
-        } else {
-            output_0_1.state = create_out_state(
-                StageType::from(2u8),
-                value_zero.clone(),
-                // change dp_zero - load from mem_address_end_pos
-                &dp_zero | input.dpval.bit(0),
-                func_state.clone(),
-            );
-        }
+        output_0_1.state = create_out_state(
+            if dest_proc_id_end_pos {
+                StageType::from(2u8)
+            } else {
+                int_ite(
+                    !(&input.dpval).bit(0),
+                    StageType::from(1 + 2u8),
+                    StageType::from(1 + 8u8),
+                )
+            },
+            value_zero.clone(),
+            if src_proc_id_end_pos {
+                dp_zero.clone()
+            } else {
+                &dp_zero | input.dpval.bit(0)
+            },
+            func_state.clone(),
+        );
         output_0_1.dkind = DKIND_TEMP_BUFFER.into();
         output_0_1.dpr = true.into();
         1
@@ -1461,7 +1463,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         0
     };
     // 1: 2. If data_part==0: then:
-    let no_end_pos = if dp_len == 1 {
+    let no_end_pos = if dp_len <= 1 {
         !(&input.dpval).bit(0)
     } else {
         if src_proc_id_end_pos {
