@@ -1218,7 +1218,7 @@ pub fn par_process_proc_id_to_mem_address_stage<F: Function1>(
     )
 }
 
-// par_copy_temp_buffer_to_mem_address_stage - copy temp_buffer to mem_address
+// par_process_temp_buffer_to_mem_address_stage - process temp_buffer to mem_address
 // Include mem_address_pos_end.
 pub fn par_process_temp_buffer_to_mem_address_stage<F: Function1>(
     output_state: UDynVarSys,
