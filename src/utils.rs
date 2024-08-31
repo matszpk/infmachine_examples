@@ -1422,7 +1422,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         assert!(tbs_dest_pos >= 2);
     }
     // TODO: Rewrite this part.
-    // 0: 0. Read first meory end pos.
+    // 0: 0. Read first memory end pos.
     let mut output_0 = output_base.clone();
     output_0.state = create_out_state(
         StageType::from(1u8),
@@ -1435,27 +1435,32 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     }
     output_0.dkind = DKIND_TEMP_BUFFER.into();
     output_0.dpr = true.into();
-    // 1: 1. Load temp_buffer data part.
-    let mut output_1 = output_base.clone();
-    if src_proc_id_end_pos {
-        output_1.state = create_out_state(
-            StageType::from(2u8),
-            value_zero.clone(),
-            dp_zero.clone(),
-            func_state.clone(),
-        );
+    // 0_1: 1. Load temp_buffer data part.
+    let mut output_0_1 = output_base.clone();
+    let tidx = if dp_len <= 1 {
+        if src_proc_id_end_pos {
+            output_0_1.state = create_out_state(
+                StageType::from(2u8),
+                value_zero.clone(),
+                dp_zero.clone(),
+                func_state.clone(),
+            );
+        } else {
+            output_0_1.state = create_out_state(
+                StageType::from(2u8),
+                value_zero.clone(),
+                // change dp_zero - load from mem_address_end_pos
+                &dp_zero | input.dpval.bit(0),
+                func_state.clone(),
+            );
+        }
+        output_0_1.dkind = DKIND_TEMP_BUFFER.into();
+        output_0_1.dpr = true.into();
+        1
     } else {
-        output_1.state = create_out_state(
-            StageType::from(2u8),
-            value_zero.clone(),
-            // change dp_zero - load from mem_address_end_pos
-            &dp_zero | input.dpval.bit(0),
-            func_state.clone(),
-        );
-    }
-    output_1.dkind = DKIND_TEMP_BUFFER.into();
-    output_1.dpr = true.into();
-    // 2: 2. If data_part==0: then:
+        0
+    };
+    // 1: 2. If data_part==0: then:
     let no_end_pos = if dp_len == 1 {
         !(&input.dpval).bit(0)
     } else {
@@ -1465,20 +1470,20 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
             !(&input.dpval).bit(0)
         }
     };
-    let mut output_2 = output_base.clone();
-    output_2.state = create_out_state(
+    let mut output_1 = output_base.clone();
+    output_1.state = create_out_state(
         int_ite(
             no_end_pos,
-            StageType::from(3u8),
-            // go to 9.
-            StageType::from(9u8),
+            StageType::from(tidx + 2u8),
+            // go to 8.
+            StageType::from(tidx + 8u8),
         ),
         value_zero.clone(),
         dp_zero.clone(),
         func_state.clone(),
     );
     // 3: 3. Move temp buffer position forward by tbs_src_pos.
-    let (output_3, _) = move_data_pos_stage(
+    let (output_2, _) = move_data_pos_stage(
         create_out_state(
             stage.clone(),
             value_zero.clone(),
@@ -1486,7 +1491,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
             func_state.clone(),
         ),
         create_out_state(
-            StageType::from(4u8),
+            StageType::from(tidx + 3u8),
             value_zero.clone(),
             dp_zero.clone(),
             func_state.clone(),
@@ -1494,28 +1499,32 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
-        tbs_src_pos as u64,
+        if dp_len > 1 {
+            tbs_src_pos as u64
+        } else {
+            (tbs_src_pos - 1) as u64
+        },
     );
     // 4: 4. Load temp buffer data_part from tbs_src_pos.
-    let mut output_4 = output_base.clone();
-    output_4.state = create_out_state(
-        StageType::from(5u8),
+    let mut output_3 = output_base.clone();
+    output_3.state = create_out_state(
+        StageType::from(tidx + 4u8),
         value_zero.clone(),
         dp_zero.clone(),
         func_state.clone(),
     );
-    output_4.dkind = DKIND_TEMP_BUFFER.into();
-    output_4.dpr = true.into();
+    output_3.dkind = DKIND_TEMP_BUFFER.into();
+    output_3.dpr = true.into();
     // 5: 5. Store data part into state value
-    let mut output_5 = output_base.clone();
-    output_5.state = create_out_state(
-        StageType::from(6u8),
+    let mut output_4 = output_base.clone();
+    output_4.state = create_out_state(
+        StageType::from(tidx + 5u8),
         input.dpval.clone(),
         dp_zero.clone(),
         func_state.clone(),
     );
     // 6: 6. Move temp_buffer position forward to tbs_dest_pos.
-    let (output_6, _) = move_data_pos_stage(
+    let (output_5, _) = move_data_pos_stage(
         create_out_state(
             stage.clone(),
             value.clone(),
@@ -1523,7 +1532,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
             func_state.clone(),
         ),
         create_out_state(
-            StageType::from(7u8),
+            StageType::from(tidx + 6u8),
             value.clone(),
             dp_zero.clone(),
             func_state.clone(),
@@ -1542,19 +1551,19 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         },
     );
     // 7: 7. Store value into destination temp buffer position.
-    let mut output_7 = output_base.clone();
-    output_7.state = create_out_state(
-        StageType::from(8u8),
+    let mut output_6 = output_base.clone();
+    output_6.state = create_out_state(
+        StageType::from(tidx + 7u8),
         value_zero.clone(),
         dp_zero.clone(),
         func_state.clone(),
     );
-    output_7.dkind = DKIND_TEMP_BUFFER.into();
-    output_7.dpw = true.into();
-    output_7.dpval = value.clone();
+    output_6.dkind = DKIND_TEMP_BUFFER.into();
+    output_6.dpw = true.into();
+    output_6.dpval = value.clone();
     // 8: 8. Move temp buffer position forward by (temp_buffer_step - tbs_dest_pos)
     // 8.1. Go to 1.
-    let (output_8, _) = move_data_pos_stage(
+    let (output_7, _) = move_data_pos_stage(
         create_out_state(
             stage.clone(),
             value_zero.clone(),
@@ -1574,7 +1583,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     );
     // 9. Else (step 1)
     // 9: 10. Move temp buffer position to start.
-    let (output_9, end_9) = data_pos_to_start_stage(
+    let (output_8, end_8) = data_pos_to_start_stage(
         create_out_state(
             stage.clone(),
             value_zero.clone(),
@@ -1591,12 +1600,14 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         DKIND_TEMP_BUFFER,
     );
     // 11. End of algorithm.
-    let end = end_9 & (&stage).equal(9u8);
+    let end = end_8 & (&stage).equal(tidx + 8u8);
     // finishing
-    let output_stages = vec![
+    let mut output_stages = vec![
         output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7, output_8,
-        output_9,
     ];
+    if dp_len <= 1 {
+        output_stages.insert(1, output_0_1);
+    }
     finish_stage_with_table(
         output_state,
         next_state,
