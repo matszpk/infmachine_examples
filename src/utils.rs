@@ -1463,23 +1463,31 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         0
     };
     // 1: 2. If data_part==0: then:
-    let no_end_pos = if dp_len <= 1 {
-        !(&input.dpval).bit(0)
-    } else {
-        if src_proc_id_end_pos {
-            !(&input.dpval).bit(1)
-        } else {
-            !(&input.dpval).bit(0)
-        }
-    };
     let mut output_1 = output_base.clone();
     output_1.state = create_out_state(
-        int_ite(
-            no_end_pos,
-            StageType::from(tidx + 2u8),
-            // go to 8.
-            StageType::from(tidx + 8u8),
-        ),
+        if dp_len <= 1 {
+            if dest_proc_id_end_pos {
+                int_ite(
+                    !(&input.dpval).bit(0),
+                    StageType::from(tidx + 2u8),
+                    // go to 8.
+                    StageType::from(tidx + 8u8),
+                )
+            } else {
+                StageType::from(tidx + 2u8)
+            }
+        } else {
+            int_ite(
+                if dest_proc_id_end_pos {
+                    !(&input.dpval).bit(1)
+                } else {
+                    !(&input.dpval).bit(0)
+                },
+                StageType::from(tidx + 2u8),
+                // go to 8.
+                StageType::from(tidx + 8u8),
+            )
+        },
         value_zero.clone(),
         dp_zero.clone(),
         func_state.clone(),
