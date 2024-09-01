@@ -516,8 +516,8 @@ pub enum InfDataParam {
 }
 
 // define default end position markers
-const END_POS_MEM_ADDRESS: usize = 0;
-const END_POS_PROC_ID: usize = 1;
+pub const END_POS_MEM_ADDRESS: usize = 0;
+pub const END_POS_PROC_ID: usize = 1;
 
 // functions
 
@@ -551,6 +551,8 @@ pub trait Function2_2 {
 
 pub trait FunctionNN {
     fn state_len(&self) -> usize;
+    fn input_num(&self) -> usize;
+    fn output_num(&self) -> usize;
     fn output(
         &self,
         input_state: UDynVarSys,
