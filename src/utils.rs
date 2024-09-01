@@ -42,6 +42,11 @@ use infmachine_gen::*;
 // Xx_y - y'th data part of data x. Number of data parts will be determined by designer.
 //
 // temp_buffer_step - Number of datas including end position markers.
+//
+// Limiter: end position marker datas.
+// Placed in first temp buffer data_part_len bit words.
+// Temp buffer chunk part: [WORD0, WORD1,...]
+// WORD0: 0 bit - memory address end pos, 1 bit - proc id end pos, 2 bit - other end pos, ....
 
 const fn calc_log_bits(n: usize) -> usize {
     let nbits = usize::BITS - n.leading_zeros();
@@ -500,12 +505,57 @@ pub fn init_machine_end_pos_stage(
     )
 }
 
+// function parameters in infinite data (memaddrss, tempbuffer, procids).
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InfDataParam {
+    MemAddress,
+    ProcId,
+    TempBuffer(usize),
+    EndPos(usize),
+}
+
+// define default end position markers
+const END_POS_MEM_ADDRESS: usize = 0;
+const END_POS_PROC_ID: usize = 1;
+
 // functions
 
 pub trait Function1 {
     fn state_len(&self) -> usize;
     // return (output state, output)
     fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys);
+}
+
+pub trait Function2 {
+    fn state_len(&self) -> usize;
+    // return (output state, output)
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+        i1: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys);
+}
+
+pub trait Function2_2 {
+    fn state_len(&self) -> usize;
+    // return (output state, output0, output1)
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+        i1: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, UDynVarSys);
+}
+
+pub trait FunctionNN {
+    fn state_len(&self) -> usize;
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>);
 }
 
 pub struct Copy1Func {}
@@ -1640,4 +1690,21 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         stage.into(),
         end,
     )
+}
+
+// TODO: use it to any other simpler function that operates in infinite data.
+// src_params and dests entry format:
+// (param, end_pos):
+// param_type - defined parameter position in infinite data.
+// end_pos - used end position marker
+pub fn par_process_infinite_data_stage<F: FunctionNN>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_params: &[(InfDataParam, usize)],
+    dests: &[(InfDataParam, usize)],
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    (InfParOutputSys::new(input.config()), true.into())
 }
