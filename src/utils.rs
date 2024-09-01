@@ -1694,6 +1694,9 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     )
 }
 
+// HINT: while moving to next position use that construction:
+// state1.dpmove = dir; state2 = move_data_pos_stage(dir, pos_diff - 1),
+// pos_diff - difference between two positions in temp buffer part.
 // TODO: use it to any other simpler function that operates in infinite data.
 // src_params and dests entry format:
 // (param, end_pos):
