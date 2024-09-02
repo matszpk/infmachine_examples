@@ -2003,7 +2003,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // read stage and movement - read temp buffer data
     //   and first movement - use read data and make first move if needed
     //   important: dpr - must be set by src end pos
-    // calculation or store stage
+    // calculation or store stage - can be fused with read stage.
 
     // last_pos - last read position in temp buffer
     // if in first write and if no other stage between last read and first write -
