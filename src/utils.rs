@@ -1840,8 +1840,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         match wuk {
             WordUsageKey::MemAddress => 0,
             WordUsageKey::ProcId => 1,
-            WordUsageKey::TempBufferBit(p) => u64::try_from(p).unwrap(),
-            WordUsageKey::TempBuffer(p) => u64::try_from(p * dp_len + b).unwrap(),
+            WordUsageKey::TempBufferBit(p) => 2 + u64::try_from(p).unwrap(),
+            WordUsageKey::TempBuffer(p) => 2 + u64::try_from(p * dp_len + b).unwrap(),
         }
     };
     // collect words to read from temp buffer chunk
