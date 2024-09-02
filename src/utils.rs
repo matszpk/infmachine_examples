@@ -1998,9 +1998,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     let mut last_usage = None;
 
-    // stage scheme:
+    // read stage scheme:
     // movement stage - stage to move this position
     // read stage - read temp buffer data
+    //   important: dpr - must be set by src end pos
     // calculation stage and first movement - use read data and make first move if needed
 
     // last_pos - last read position in temp buffer
@@ -2012,19 +2013,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let mut first = true;
         // queue: that holds all entries with same temp buffer pos
         let mut last_same_pos_idx = 0;
-        let mut update_chunk = |i, last_same_pos_idx, last_pos| {
+        let mut update_chunk = |i, last_same_pos_idx, last_pos, movement_stage_needed: bool| {
             // before calculation stage
             // for this stage use all possible variables
-            for usg_entry in &temp_buffer_words_to_read[last_same_pos_idx..i] {
-                let k = match usg_entry.usage {
-                    WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
-                        WordUsageKey::TempBufferBit(dp_len * usg_entry.pos + b)
-                    }
-                    WordReadUsage::TempBuffer => WordUsageKey::TempBuffer(usg_entry.pos),
-                };
-                // decrease usage
-                *state_usage_map.get_mut(&k).unwrap() -= 1;
-            }
             if last_dest_end_pos_pos == Some(last_pos) {
                 // if this last dest end pos marker - handle joinment
                 for usg_entry in &temp_buffer_words_to_read[0..i] {
@@ -2038,23 +2029,40 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     }
                 }
             }
+            // if no movement stage - then process next chunk between stages
+            if !movement_stage_needed {
+                let p = match temp_buffer_words_to_read[i..]
+                    .iter()
+                    .position(|e| e.pos != last_pos)
+                {
+                    Some(p) => i + p,
+                    None => temp_buffer_words_to_read.len() - i,
+                };
+                for next_entry in &temp_buffer_words_to_read[i..p] {
+                    if let WordReadUsage::EndPosLimit(b) = next_entry.usage {
+                        let k = WordUsageKey::TempBufferBit(next_entry.pos * dp_len + b);
+                        // decrease usage
+                        *state_usage_map.get_mut(&k).unwrap() -= 1;
+                    }
+                }
+            }
+            // at store stage
+            // if needed just allocate needed variables (if current usage != 0)
         };
         for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
-            if last_pos != entry.pos {
-                update_chunk(i, last_same_pos_idx, last_pos);
-                // at store stage
-                // if needed just allocate needed variables (if current usage != 0)
-                last_same_pos_idx = i;
-            }
             // movement stage
             let mut last_must_store = false;
-            if (first && entry.pos != last_pos)
+            let movement_stage_needed = (first && entry.pos != last_pos)
                 || (!first &&
                     // or if requred movement ot next position requires more than one move
                     (entry.pos + 1 < last_pos
-                    || entry.pos > last_pos + 1))
-            {
+                    || entry.pos > last_pos + 1));
+            if movement_stage_needed {
                 read_temp_buffer_stages += 1;
+            }
+            if last_pos != entry.pos {
+                update_chunk(i, last_same_pos_idx, last_pos, movement_stage_needed);
+                last_same_pos_idx = i;
             }
             // reading
             if first || entry.pos != last_pos {
@@ -2065,7 +2073,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             last_usage = Some(entry.usage);
             first = false;
         }
-        update_chunk(temp_buffer_words_to_read.len(), last_same_pos_idx, last_pos);
+        update_chunk(
+            temp_buffer_words_to_read.len(),
+            last_same_pos_idx,
+            last_pos,
+            false,
+        );
         (read_temp_buffer_stages, last_pos)
     };
 
