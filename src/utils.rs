@@ -2005,6 +2005,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // read mem_address data part and move postion (if not write to it)
     // read proc_id data part and move position
     // read temp buffer data parts and move positions
+    // filter all inputs and process all inputs.
     // in this point it possible to fuse read/processing/write stages together
     // write mem_address data part and move position
     // move to first temp buffer data to write
