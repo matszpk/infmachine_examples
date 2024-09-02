@@ -2055,12 +2055,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             let movement_stage_needed = (first && entry.pos != last_pos)
                 || (!first &&
                     // or if requred movement ot next position requires more than one move
-                    (entry.pos + 1 < last_pos
-                    || entry.pos > last_pos + 1));
+                    (entry.pos + 2 < last_pos
+                    || entry.pos > last_pos + 2));
             if movement_stage_needed {
                 read_temp_buffer_stages += 1;
             } else if !first {
-                read_temp_buffer_stages -= 1;   // stage fusion
+                if entry.pos + 1 >= last_pos
+                    || entry.pos <= last_pos + 1 {
+                    read_temp_buffer_stages -= 1;   // stage fusion
+                }
             }
             if last_pos != entry.pos {
                 update_chunk(i, last_pos, movement_stage_needed);
