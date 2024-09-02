@@ -1701,7 +1701,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
 // src_params and dests entry format:
 // (param, end_pos):
 // param_type - defined parameter position in infinite data.
-// end_pos - used end position marker
+// end_pos - used end position marker to limit data (limiter)
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -1711,5 +1711,158 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     dests: &[(InfDataParam, usize)],
     func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    // src_params can be empty (no input for functions)
+    assert!(!dests.is_empty());
+    let config = input.config();
+    let dp_len = config.data_part_len as usize;
+    // words where is end position markers
+    let end_pos_words = {
+        let mut end_pos_words = src_params
+            .iter()
+            .chain(dests.iter())
+            .filter_map(|(dp, _)| {
+                if let InfDataParam::EndPos(pos) = dp {
+                    // divide by data_part_len to get word position
+                    Some(pos / dp_len)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        end_pos_words.sort();
+        end_pos_words.dedup();
+        end_pos_words
+    };
+    for (data_param, end_pos) in src_params {
+        if let InfDataParam::TempBuffer(pos) = data_param {
+            // temp buffer positions shouldn't cover words with end pos markers
+            assert!(end_pos_words.binary_search(pos).is_err());
+        }
+    }
+    // find unique words used to read
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum WordReadUsage {
+        // end pos to limit other input. parameter is bit in word.
+        EndPosLimit(usize),
+        // end pos as input
+        EndPosInput(usize),
+        // read input from temp buffer
+        TempBuffer,
+    }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum WordWriteUsage {
+        // end pos as output. parameter is bit in word.
+        EndPosOutput(usize),
+        // write output from temp buffer
+        TempBuffer,
+    }
+    // collect words to read from temp buffer chunk
+    let temp_buffer_words_to_read = {
+        let mut temp_buffer_words_to_read = vec![];
+        for (data_param, end_pos_limit) in src_params {
+            // push from end pos limiter
+            temp_buffer_words_to_read.push((
+                (end_pos_limit / dp_len),
+                WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
+            ));
+            // push from data param
+            match data_param {
+                InfDataParam::EndPos(pos) => {
+                    temp_buffer_words_to_read
+                        .push(((pos / dp_len), WordReadUsage::EndPosLimit(*pos % dp_len)));
+                }
+                InfDataParam::TempBuffer(pos) => {
+                    temp_buffer_words_to_read.push((*pos, WordReadUsage::TempBuffer));
+                }
+                _ => (),
+            }
+        }
+        // end pos limiter from destinations
+        for (_, end_pos_limit) in dests {
+            // push from end pos limiter
+            temp_buffer_words_to_read.push((
+                (end_pos_limit / dp_len),
+                WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
+            ));
+        }
+        temp_buffer_words_to_read.sort();
+        temp_buffer_words_to_read.dedup();
+        temp_buffer_words_to_read
+    };
+    // collect words to write from temp buffer chunk
+    let temp_buffer_words_to_write = {
+        let mut temp_buffer_words_to_write = vec![];
+        for (data_param, end_pos_limit) in dests {
+            // push from data param
+            match data_param {
+                InfDataParam::EndPos(pos) => {
+                    temp_buffer_words_to_write
+                        .push(((pos / dp_len), WordReadUsage::EndPosLimit(*pos % dp_len)));
+                }
+                InfDataParam::TempBuffer(pos) => {
+                    temp_buffer_words_to_write.push((*pos, WordReadUsage::TempBuffer));
+                }
+                _ => (),
+            }
+        }
+        temp_buffer_words_to_write.sort();
+        temp_buffer_words_to_write.dedup();
+        temp_buffer_words_to_write
+    };
+    // prepare plan for stages
+    // prepare stages for read words
+    let read_mem_address_and_proc_id_stages = usize::from(
+        src_params
+            .iter()
+            .chain(dests.iter())
+            .any(|(dp, _)| matches!(dp, InfDataParam::MemAddress)),
+    ) + usize::from(
+        src_params
+            .iter()
+            .chain(dests.iter())
+            .any(|(dp, _)| matches!(dp, InfDataParam::ProcId)),
+    );
+    let (read_temp_buffer_stages, last_pos) = {
+        let mut read_temp_buffer_stages = 0;
+        let mut last_pos = 0;
+        let mut first = true;
+        for (read_pos, read_usage) in &temp_buffer_words_to_read {
+            if (first && *read_pos != last_pos)
+                || (!first &&
+                    // or if requred movement ot next position requires more than one move
+                    (*read_pos + 1 < last_pos
+                    || *read_pos > last_pos + 1))
+            {
+                read_temp_buffer_stages += 1;
+            }
+            // reading
+            if first || *read_pos != last_pos {
+                read_temp_buffer_stages += 1;
+            }
+            last_pos = *read_pos;
+            first = false;
+        }
+        (read_temp_buffer_stages, last_pos)
+    };
+    let write_temp_buffer_stages = {
+        let mut write_temp_buffer_stages = 0;
+        let mut last_pos = last_pos;
+        for (write_pos, write_usage) in &temp_buffer_words_to_write {
+            if *write_pos + 1 < last_pos
+                    || *write_pos > last_pos + 1
+            {
+                write_temp_buffer_stages += 1;
+            }
+            if *write_pos != last_pos {
+                write_temp_buffer_stages += 1;
+            }
+            last_pos = *write_pos;
+        }
+        write_temp_buffer_stages
+    };
+    // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
+    let move_backwards_stage_count = 1 + read_mem_address_and_proc_id_stages;
+    //
     (InfParOutputSys::new(input.config()), true.into())
 }
