@@ -1751,40 +1751,67 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         TempBuffer,
     }
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum ReadOrigIndex {
+        FromSrc(usize),
+        FromDest(usize),
+    }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct WordReadEntry {
+        pos: usize,
+        usage: WordReadUsage,
+        orig_index: ReadOrigIndex,
+    }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum WordWriteUsage {
         // end pos as output. parameter is bit in word.
         EndPosOutput(usize),
         // write output from temp buffer
         TempBuffer,
     }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct WordWriteEntry {
+        pos: usize,
+        usage: WordWriteUsage,
+        orig_index: usize,
+    }
+    use ReadOrigIndex::*;
     // collect words to read from temp buffer chunk
     let temp_buffer_words_to_read = {
         let mut temp_buffer_words_to_read = vec![];
-        for (data_param, end_pos_limit) in src_params {
+        for (i, (data_param, end_pos_limit)) in src_params.into_iter().enumerate() {
             // push from end pos limiter
-            temp_buffer_words_to_read.push((
-                (end_pos_limit / dp_len),
-                WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
-            ));
+            temp_buffer_words_to_read.push(WordReadEntry {
+                pos: end_pos_limit / dp_len,
+                usage: WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
+                orig_index: FromSrc(i),
+            });
             // push from data param
             match data_param {
                 InfDataParam::EndPos(pos) => {
-                    temp_buffer_words_to_read
-                        .push(((pos / dp_len), WordReadUsage::EndPosLimit(*pos % dp_len)));
+                    temp_buffer_words_to_read.push(WordReadEntry {
+                        pos: pos / dp_len,
+                        usage: WordReadUsage::EndPosInput(*pos % dp_len),
+                        orig_index: FromSrc(i),
+                    });
                 }
                 InfDataParam::TempBuffer(pos) => {
-                    temp_buffer_words_to_read.push((*pos, WordReadUsage::TempBuffer));
+                    temp_buffer_words_to_read.push(WordReadEntry {
+                        pos: *pos,
+                        usage: WordReadUsage::TempBuffer,
+                        orig_index: FromSrc(i),
+                    });
                 }
                 _ => (),
             }
         }
         // end pos limiter from destinations
-        for (_, end_pos_limit) in dests {
+        for (i, (_, end_pos_limit)) in dests.into_iter().enumerate() {
             // push from end pos limiter
-            temp_buffer_words_to_read.push((
-                (end_pos_limit / dp_len),
-                WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
-            ));
+            temp_buffer_words_to_read.push(WordReadEntry {
+                pos: end_pos_limit / dp_len,
+                usage: WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
+                orig_index: FromDest(i),
+            });
         }
         temp_buffer_words_to_read.sort();
         temp_buffer_words_to_read.dedup();
@@ -1793,15 +1820,22 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // collect words to write from temp buffer chunk
     let temp_buffer_words_to_write = {
         let mut temp_buffer_words_to_write = vec![];
-        for (data_param, end_pos_limit) in dests {
+        for (i, (data_param, end_pos_limit)) in dests.into_iter().enumerate() {
             // push from data param
             match data_param {
                 InfDataParam::EndPos(pos) => {
-                    temp_buffer_words_to_write
-                        .push(((pos / dp_len), WordReadUsage::EndPosLimit(*pos % dp_len)));
+                    temp_buffer_words_to_write.push(WordWriteEntry {
+                        pos: pos / dp_len,
+                        usage: WordWriteUsage::EndPosOutput(*pos % dp_len),
+                        orig_index: i,
+                    });
                 }
                 InfDataParam::TempBuffer(pos) => {
-                    temp_buffer_words_to_write.push((*pos, WordReadUsage::TempBuffer));
+                    temp_buffer_words_to_write.push(WordWriteEntry {
+                        pos: *pos,
+                        usage: WordWriteUsage::TempBuffer,
+                        orig_index: i,
+                    });
                 }
                 _ => (),
             }
@@ -1827,20 +1861,20 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let mut read_temp_buffer_stages = 0;
         let mut last_pos = 0;
         let mut first = true;
-        for (read_pos, read_usage) in &temp_buffer_words_to_read {
-            if (first && *read_pos != last_pos)
+        for entry in &temp_buffer_words_to_read {
+            if (first && entry.pos != last_pos)
                 || (!first &&
                     // or if requred movement ot next position requires more than one move
-                    (*read_pos + 1 < last_pos
-                    || *read_pos > last_pos + 1))
+                    (entry.pos + 1 < last_pos
+                    || entry.pos > last_pos + 1))
             {
                 read_temp_buffer_stages += 1;
             }
             // reading
-            if first || *read_pos != last_pos {
+            if first || entry.pos != last_pos {
                 read_temp_buffer_stages += 1;
             }
-            last_pos = *read_pos;
+            last_pos = entry.pos;
             first = false;
         }
         (read_temp_buffer_stages, last_pos)
@@ -1849,16 +1883,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let write_temp_buffer_stages = {
         let mut write_temp_buffer_stages = 0;
         let mut last_pos = last_pos;
-        for (write_pos, write_usage) in &temp_buffer_words_to_write {
-            if *write_pos + 1 < last_pos
-                    || *write_pos > last_pos + 1
-            {
+        for entry in &temp_buffer_words_to_write {
+            if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
                 write_temp_buffer_stages += 1;
             }
-            if *write_pos != last_pos {
+            if entry.pos != last_pos {
                 write_temp_buffer_stages += 1;
             }
-            last_pos = *write_pos;
+            last_pos = entry.pos;
         }
         write_temp_buffer_stages
     };
