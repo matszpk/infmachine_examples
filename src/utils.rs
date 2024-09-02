@@ -1712,6 +1712,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_eq!(func.input_num(), src_params.len());
+    assert_eq!(func.output_num(), dests.len());
     // src_params can be empty (no input for functions)
     assert!(!dests.is_empty());
     let config = input.config();
