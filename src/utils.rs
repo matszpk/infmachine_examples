@@ -1698,58 +1698,6 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     )
 }
 
-// for allocation in state
-#[derive(Clone)]
-pub struct VarAllocator<T> {
-    free_list: BinaryHeap<std::cmp::Reverse<T>>,
-    alloc_map: Vec<bool>,
-}
-
-impl<T> VarAllocator<T>
-where
-    T: Clone + Copy + Ord + PartialEq + Eq,
-    T: TryFrom<usize>,
-    <T as TryFrom<usize>>::Error: Debug,
-    usize: TryFrom<T>,
-    <usize as TryFrom<T>>::Error: Debug,
-{
-    pub fn new() -> Self {
-        Self {
-            free_list: BinaryHeap::new(),
-            alloc_map: vec![],
-        }
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.alloc_map.len()
-    }
-
-    pub fn alloc(&mut self) -> T {
-        if let Some(std::cmp::Reverse(index)) = self.free_list.pop() {
-            let index_u = usize::try_from(index).unwrap();
-            self.alloc_map[index_u] = true;
-            index
-        } else {
-            let index = self.alloc_map.len();
-            self.alloc_map.push(true);
-            T::try_from(index).unwrap()
-        }
-    }
-
-    pub fn free(&mut self, index: T) -> bool {
-        let index_u = usize::try_from(index).unwrap();
-        assert!(index_u < self.len());
-        if self.alloc_map[index_u] {
-            self.free_list.push(std::cmp::Reverse(index));
-            self.alloc_map[index_u] = false;
-            true
-        } else {
-            false
-        }
-    }
-}
-
 // HINT: while moving to next position use that construction:
 // state1.dpmove = dir; state2 = move_data_pos_stage(dir, pos_diff - 1),
 // pos_diff - difference between two positions in temp buffer part.
