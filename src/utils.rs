@@ -1951,7 +1951,18 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // prepare usage of variables
     let (mut state_usage_map, last_dest_end_pos_pos) = {
         let mut state_usage_map = HashMap::<WordUsageKey, usize>::new();
+
+        // handle memory address
+        if use_read_mem_address_count != 0 {
+            state_usage_map.insert(WordUsageKey::MemAddress, use_read_mem_address_count);
+        }
+        // handle proc id
+        if use_proc_id_count != 0 {
+            state_usage_map.insert(WordUsageKey::ProcId, use_proc_id_count);
+        }
+
         let mut last_dest_end_pos_pos = None;
+
         for entry in &temp_buffer_words_to_read {
             let k = match entry.usage {
                 WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
@@ -1969,14 +1980,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             } else {
                 state_usage_map.insert(k, 1);
             }
-        }
-        // handle memory address
-        if use_read_mem_address_count != 0 {
-            state_usage_map.insert(WordUsageKey::MemAddress, use_read_mem_address_count);
-        }
-        // handle proc id
-        if use_proc_id_count != 0 {
-            state_usage_map.insert(WordUsageKey::ProcId, use_proc_id_count);
         }
         // loop breaking and handle destination writing
         for entry in &temp_buffer_words_to_write {
@@ -1998,12 +2001,24 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     let mut last_usage = None;
 
+    // main plan of processing:
+    // read mem_address data part and move postion (if not write to it)
+    // read proc_id data part and move position
+    // read temp buffer data parts and move positions
+    // in this point it possible to fuse read/processing/write stages together
+    // write mem_address data part and move position
+    // move to first temp buffer data to write
+    // write temp buffer data parts and move position
+    // move to start.
+
     // read stage scheme:
     // movement stage - stage to move this position if needed
     // read stage and movement - read temp buffer data
     //   and first movement - use read data and make first move if needed
     //   important: dpr - must be set by src end pos
     // calculation or store stage - can be fused with read stage.
+
+    // process reading of mem_address and proc_id.
 
     // last_pos - last read position in temp buffer
     // if in first write and if no other stage between last read and first write -
@@ -2014,7 +2029,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let mut first = true;
         // queue: that holds all entries with same temp buffer pos
         // let mut last_same_pos_idx = 0;
-        let mut update_chunk = |i, last_pos, movement_stage_needed: bool| {
+        let mut update_chunk = |i, last_pos| {
             // before calculation stage
             // for this stage use all possible variables
             if last_dest_end_pos_pos == Some(last_pos) {
@@ -2027,23 +2042,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                             // decrease usage
                             *state_usage_map.get_mut(&k).unwrap() -= 1;
                         }
-                    }
-                }
-            }
-            // if no movement stage - then process next chunk between stages
-            if !movement_stage_needed {
-                let p = match temp_buffer_words_to_read[i..]
-                    .iter()
-                    .position(|e| e.pos != last_pos)
-                {
-                    Some(p) => i + p,
-                    None => temp_buffer_words_to_read.len() - i,
-                };
-                for next_entry in &temp_buffer_words_to_read[i..p] {
-                    if let WordReadUsage::EndPosLimit(b) = next_entry.usage {
-                        let k = WordUsageKey::TempBufferBit(next_entry.pos * dp_len + b);
-                        // decrease usage
-                        *state_usage_map.get_mut(&k).unwrap() -= 1;
                     }
                 }
             }
@@ -2070,7 +2068,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 }
             }
             if last_pos != entry.pos {
-                update_chunk(i, last_pos, movement_stage_needed);
+                update_chunk(i, last_pos);
                 // last_same_pos_idx = i;
             }
             // reading
@@ -2082,7 +2080,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             last_usage = Some(entry.usage);
             first = false;
         }
-        update_chunk(temp_buffer_words_to_read.len(), last_pos, false);
+        update_chunk(temp_buffer_words_to_read.len(), last_pos);
         (read_temp_buffer_stages, last_pos)
     };
 
