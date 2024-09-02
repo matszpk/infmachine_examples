@@ -2065,7 +2065,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             if movement_stage_needed_2 {
                 read_temp_buffer_stages += 1;
             } else if !first {
-                if movement_stage_needed {
+                if !movement_stage_needed {
                     read_temp_buffer_stages -= 1; // stage fusion
                 }
             }
