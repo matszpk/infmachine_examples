@@ -1845,6 +1845,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         (read_temp_buffer_stages, last_pos)
     };
+    // prepare stages for write words
     let write_temp_buffer_stages = {
         let mut write_temp_buffer_stages = 0;
         let mut last_pos = last_pos;
