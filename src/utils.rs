@@ -1960,6 +1960,20 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // calculation or store stage - can be fused with read stage.
 
     // process reading of mem_address and proc_id.
+    if use_read_mem_address_count != 0 {
+        if use_proc_id_count != 0 || !temp_buffer_words_to_read.is_empty() {
+            // allocate read value
+            read_pos_allocs.push((InfDataParam::MemAddress, read_state_bit_count));
+            read_state_bit_count += dp_len;
+        }
+    }
+    if use_proc_id_count != 0 {
+        if !temp_buffer_words_to_read.is_empty() {
+            // allocate read value
+            read_pos_allocs.push((InfDataParam::ProcId, read_state_bit_count));
+            read_state_bit_count += dp_len;
+        }
+    }
 
     // last_pos - last read position in temp buffer
     // if in first write and if no other stage between last read and first write -
@@ -1977,17 +1991,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     // or if requred movement ot next position requires more than one move
                     (entry.pos + 1 < last_pos
                     || entry.pos > last_pos + 1));
-            let movement_stage_needed_2 = (first && entry.pos != last_pos)
+            if (first && entry.pos != last_pos)
                 || (!first &&
-                    // or if requred movement ot next position requires more than one move
+                    // or if requred movement to 2 next positiona requires more than one move
                     (entry.pos + 2 < last_pos
-                    || entry.pos > last_pos + 2));
-            if movement_stage_needed_2 {
+                    || entry.pos > last_pos + 2))
+            {
                 read_temp_buffer_stages += 1;
-            } else if !first {
-                if !first && !movement_stage_needed {
-                    read_temp_buffer_stages -= 1; // stage fusion
-                }
+            } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
+                read_temp_buffer_stages -= 1; // store stage fusion
             }
             if last_pos != entry.pos {
                 // last_same_pos_idx = i;
