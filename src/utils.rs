@@ -1995,6 +1995,63 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     //   [write, move]
     //   [movement]
 
+    // join read and process:
+    // excluded case: no temp buffer read - must be one temp buffer read.
+    // first write and last read is same temp buffer position: and NO read required at write:
+    // [last_read]
+    // [[store],process,write,move_to_next]
+    // between first write and last read only one move: and NO read required at write:
+    // [last_read,move]
+    // [[store],process,write,move_to_next]
+    // between first write and last read more than one move: and NO read required at write:
+    // [last_read,move] - need store last reads
+    // [movement]
+    // [[store],process,write,move_to_next]
+    //
+    // first write and last read is same temp buffer position: and read required at write:
+    // [last_read] <- fuse read
+    // [[store],process,write,move_to_next]
+    // between first write and last read only one move: and read required at write:
+    // [last_read,move] - need store last reads
+    // [read]
+    // [[store],process,write,move_to_next]
+    // between first write and last read more than one move: and read required at write:
+    // [last_read,move] - need store last reads
+    // [movement]
+    // [read]
+    // [[store],process,write,move_to_next]
+    //
+    // mem_address write and last read same position as first write to temp buffer
+    // and NO read required at write:
+    // [last_read]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // mem_address write and between last read and first write temp temp buffer is 1 move
+    // and NO read required at write:
+    // [last_read,move]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // mem_address write and between last read and first write temp temp buffer is
+    // more than one move and NO read required at write:
+    // [last_read,move]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // [movement] <- next temp buffer position
+    //
+    // mem_address write and last read same position as first write to temp buffer
+    // and read required at write:
+    // [last_read] - need store last reads
+    // [mem_address_read]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // mem_address write and between last read and first write temp temp buffer is 1 move
+    // and read required at write:
+    // [last_read,move] - need store last reads
+    // [mem_address_read]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // mem_address write and between last read and first write temp temp buffer is
+    // more than one move and read required at write:
+    // [last_read,move] - need store last reads
+    // [mem_address_read]
+    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // [movement]
+
     // process reading of mem_address and proc_id.
     if use_read_mem_address_count != 0 {
         if use_proc_id_count != 0 || !temp_buffer_words_to_read.is_empty() {
@@ -2015,85 +2072,82 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // if in first write and if no other stage between last read and first write -
     // then get from input.dpval not from state.
     let mut last_pos_idx = 0;
-    let (read_temp_buffer_stages, last_pos) = {
-        let mut read_temp_buffer_stages = 0;
-        let mut last_pos = 0;
-        let mut first = true;
-        // queue: that holds all entries with same temp buffer pos
-        // let mut last_same_pos_idx = 0;
-        for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
-            // movement stage
-            if (first && entry.pos != last_pos)
-                || (!first &&
-                    // or if requred movement to 2 next positiona requires more than one move
-                    (entry.pos + 2 < last_pos
-                    || entry.pos > last_pos + 2))
-            {
-                read_temp_buffer_stages += 1;
-            } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
-                read_temp_buffer_stages -= 1; // store stage fusion with read stage
-            }
+    let mut read_temp_buffer_stages = 0;
+    let mut last_pos = 0;
+    let mut first = true;
+    // queue: that holds all entries with same temp buffer pos
+    // let mut last_same_pos_idx = 0;
+    for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
+        // movement stage
+        if (first && entry.pos != last_pos)
+            || (!first &&
+                // or if requred movement to 2 next positiona requires more than one move
+                (entry.pos + 2 < last_pos
+                || entry.pos > last_pos + 2))
+        {
+            read_temp_buffer_stages += 1;
+        } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
+            read_temp_buffer_stages -= 1; // store stage fusion with read stage
+        }
 
-            // allocate state bits
-            if !first && last_pos != entry.pos {
-                let mut dest_end_pos_set = vec![];
-                for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
-                    match entry.orig_index {
-                        FromDest(p) => {
-                            if let WordReadUsage::EndPosLimit(b) = entry.usage {
-                                // allocate in dest_end segment
-                                dest_end_pos_set.push(InfDataParam::EndPos(dp_len * p + b));
-                                dest_end_pos_allocs.push((
-                                    InfDataParam::EndPos(dp_len * p + b),
-                                    dest_end_pos_state_bit_count,
-                                ));
-                                dest_end_pos_state_bit_count += 1;
-                                if let Some((param, _)) = read_pos_allocs.last() {
-                                    if *param == InfDataParam::EndPos(dp_len * p + b) {
-                                        // revert from read segment if found as last
-                                        read_pos_allocs.pop();
-                                        read_state_bit_count -= 1;
-                                    }
+        // allocate state bits
+        if !first && last_pos != entry.pos {
+            let mut dest_end_pos_set = vec![];
+            for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
+                match entry.orig_index {
+                    FromDest(p) => {
+                        if let WordReadUsage::EndPosLimit(b) = entry.usage {
+                            // allocate in dest_end segment
+                            dest_end_pos_set.push(InfDataParam::EndPos(dp_len * p + b));
+                            dest_end_pos_allocs.push((
+                                InfDataParam::EndPos(dp_len * p + b),
+                                dest_end_pos_state_bit_count,
+                            ));
+                            dest_end_pos_state_bit_count += 1;
+                            if let Some((param, _)) = read_pos_allocs.last() {
+                                if *param == InfDataParam::EndPos(dp_len * p + b) {
+                                    // revert from read segment if found as last
+                                    read_pos_allocs.pop();
+                                    read_state_bit_count -= 1;
                                 }
                             }
                         }
-                        FromSrc(p) => match entry.usage {
-                            WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
-                                // if not in dest_end_pos_set
-                                if dest_end_pos_set
-                                    .iter()
-                                    .all(|x| *x != InfDataParam::EndPos(dp_len * p + b))
-                                {
-                                    // the allocate in read segment
-                                    read_pos_allocs.push((
-                                        InfDataParam::EndPos(dp_len * p + b),
-                                        read_state_bit_count,
-                                    ));
-                                    read_state_bit_count += 1;
-                                }
-                            }
-                            WordReadUsage::TempBuffer => {
-                                read_pos_allocs
-                                    .push((InfDataParam::TempBuffer(p), read_state_bit_count));
-                                read_state_bit_count += dp_len;
-                            }
-                        },
                     }
+                    FromSrc(p) => match entry.usage {
+                        WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
+                            // if not in dest_end_pos_set
+                            if dest_end_pos_set
+                                .iter()
+                                .all(|x| *x != InfDataParam::EndPos(dp_len * p + b))
+                            {
+                                // the allocate in read segment
+                                read_pos_allocs.push((
+                                    InfDataParam::EndPos(dp_len * p + b),
+                                    read_state_bit_count,
+                                ));
+                                read_state_bit_count += 1;
+                            }
+                        }
+                        WordReadUsage::TempBuffer => {
+                            read_pos_allocs
+                                .push((InfDataParam::TempBuffer(p), read_state_bit_count));
+                            read_state_bit_count += dp_len;
+                        }
+                    },
                 }
-                last_pos_idx = i;
             }
-            // reading
-            if first || entry.pos != last_pos {
-                read_temp_buffer_stages += 2; // include read stage and store stage.
-            }
-            // rest of iteration
-            last_pos = entry.pos;
-            last_usage = Some(entry.usage);
-            first = false;
+            last_pos_idx = i;
         }
-        //
-        (read_temp_buffer_stages, last_pos)
-    };
+        // reading
+        if first || entry.pos != last_pos {
+            read_temp_buffer_stages += 2; // include read stage and store stage.
+        }
+        // rest of iteration
+        last_pos = entry.pos;
+        last_usage = Some(entry.usage);
+        first = false;
+    }
+    //
     // find first dest end pos limiters.
     let first_end_pos_in_writes = {
         let mut first_end_pos_in_writes = Vec::<usize>::new();
@@ -2132,6 +2186,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
         }
     }
+    read_temp_buffer_stages += 1; // include read stage.
 
     // join last process and first write to one stage if:
     // * first write to memory_address
