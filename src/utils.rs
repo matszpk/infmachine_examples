@@ -1748,7 +1748,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         end_pos_words.dedup();
         end_pos_words
     };
-    for (data_param, end_pos) in src_params {
+    for (data_param, _) in src_params {
         if let InfDataParam::TempBuffer(pos) = data_param {
             // temp buffer positions shouldn't cover words with end pos markers
             assert!(end_pos_words.binary_search(pos).is_err());
@@ -1827,7 +1827,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
         }
         // push end pos limiter from destinations
-        for (i, (data_param, end_pos_limit)) in dests.into_iter().enumerate() {
+        for (i, (_, end_pos_limit)) in dests.into_iter().enumerate() {
             // push from end pos limiter
             temp_buffer_words_to_read.push(WordReadEntry {
                 pos: end_pos_limit / dp_len,
@@ -1842,7 +1842,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // collect words to write from temp buffer chunk
     let temp_buffer_words_to_write = {
         let mut temp_buffer_words_to_write = vec![];
-        for (i, (data_param, end_pos_limit)) in dests.into_iter().enumerate() {
+        for (i, (data_param, _)) in dests.into_iter().enumerate() {
             // push from data param
             match data_param {
                 InfDataParam::EndPos(pos) => {
@@ -1941,8 +1941,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let read_mem_address_and_proc_id_stages =
         usize::from(use_read_mem_address_count != 0 && use_write_mem_address)
             + usize::from(use_proc_id_count != 0);
-
-    let mut last_usage = None;
 
     // main plan of processing:
     // read mem_address data part and move postion (if not write to it)
@@ -2077,10 +2075,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         if !first && last_pos != entry.pos {
             let mut dest_end_pos_set = vec![];
             let mut last_usage = None;
-            for (j, entry) in temp_buffer_words_to_read[last_pos_idx..i]
-                .iter()
-                .enumerate()
-            {
+            for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
                 // Important notice about ordering:
                 // Next majority after usage is enum's variant (FromDest and FromSrc)
                 // thus, ordering of temp_buffer_words_to_read is correct.
@@ -2140,7 +2135,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         // rest of iteration
         last_pos = entry.pos;
-        last_usage = Some(entry.usage);
         first = false;
     }
     // determine next temp buffer position
@@ -2297,6 +2291,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
     total_stages += 1 + read_mem_address_and_proc_id_stages;
     let total_stages = total_stages; // as not mutable (read-only)
+
+    // fix allocs
+    for (_, t) in &mut read_pos_allocs {
+        *t += dest_end_pos_state_bit_count;
+    }
+    for (_, t) in &mut write_pos_allocs {
+        *t += dest_end_pos_state_bit_count;
+    }
 
     //
     // MAIN PROCESS:
