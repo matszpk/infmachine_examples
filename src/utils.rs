@@ -2267,12 +2267,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // prepare stages for write words
     let mut first = true;
+    let mut write_last_pos = None;
     for entry in &temp_buffer_words_to_write {
-        // at first write include first move at last read
-        if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
-            total_stages += 1;
-        }
-        if entry.pos != last_pos {
+        if Some(entry.pos) != write_last_pos {
+            // at first write include first move at last read
+            if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
+                total_stages += 1;
+            }
             if !filled_tb_pos[entry.pos] {
                 if !first && !fuse_read_with_write_temp_buffer_end_pos_read {
                     // exclude special case when last read position == first write position
@@ -2281,9 +2282,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 }
             }
             total_stages += 1;
+            last_pos = entry.pos;
+            write_last_pos = Some(entry.pos);
+            first = false;
         }
-        last_pos = entry.pos;
-        first = false;
     }
     // Now. Add to total_stages stage to move to next data chunk at start.
     // (temp_buffer_step - last_pos)
