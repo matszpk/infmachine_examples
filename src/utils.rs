@@ -2299,6 +2299,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     for (_, t) in &mut write_pos_allocs {
         *t += dest_end_pos_state_bit_count;
     }
+    let state_bit_num =
+        dest_end_pos_state_bit_count + std::cmp::max(read_state_bit_count, write_state_bit_count);
 
     //
     // MAIN PROCESS:
