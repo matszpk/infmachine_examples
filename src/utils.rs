@@ -2143,16 +2143,33 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         last_usage = Some(entry.usage);
         first = false;
     }
+    // determine next temp buffer position
+    let next_position = if !temp_buffer_words_to_write.is_empty() {
+        temp_buffer_words_to_write[0].pos
+    } else {
+        temp_buffer_step as usize
+    };
+    let fuse_read_with_write_temp_buffer_end_pos_read = {
+        if let Some(write) = temp_buffer_words_to_write.get(0) {
+            last_pos == write.pos && matches!(write.usage, WordWriteUsage::EndPosOutput(_))
+        } else {
+            false
+        }
+    };
     // determine join with process stage and first write stage
-    let first_write_pos = temp_buffer_words_to_write[0].pos;
     let join_with_first_write_stage = use_write_mem_address
         // if only one move needed to first write position
-        || ((first_write_pos + 1 >= last_pos
-            && first_write_pos <= last_pos + 1) &&
-            // if whole temp buffer data part
-            (matches!(temp_buffer_words_to_write[0].usage, WordWriteUsage::TempBuffer)
-                //  or filled by all end pos outputs
-                || filled_tb_pos[temp_buffer_words_to_write[0].pos]));
+        || ((next_position + 1 >= last_pos
+            && next_position <= last_pos + 1) && (
+            if let Some(write) = temp_buffer_words_to_write.get(0) {
+                // if whole temp buffer data part
+                (matches!(write.usage, WordWriteUsage::TempBuffer)
+                    // or filled by all end pos outputs or fused with read between
+                    // last_read and first_write.
+                    || (fuse_read_with_write_temp_buffer_end_pos_read || filled_tb_pos[write.pos]))
+            } else {
+                false
+            }));
     //
     // find first dest end pos limiters to skip if process and writes are fused.
     let first_end_pos_in_writes = {
@@ -2207,46 +2224,34 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     total_stages += 2; // include read stage and process stage.
 
     // allocate writes excluding first write
-    let write_first_pos = temp_buffer_words_to_write[0].pos;
-    // skip_while - entry.pos == skip if write_first_pos - skip first write.
-    // skip if possible join first write stage with process stage - then skip
-    //     first writes can be ommited while storing in states (it read directly).
-    // otherwise all writes should be stored in states because all will be in next stages.
-    // use: join_with_first_write_stage && e.pos == write_first_pos to do it.
-    for entry in temp_buffer_words_to_write
-        .iter()
-        .skip_while(|e| join_with_first_write_stage && e.pos == write_first_pos)
-    {
-        // entries in temp_buffer_words_to_write are unique (unique position with usage).
-        // just process single writes
-        match entry.usage {
-            WordWriteUsage::EndPosOutput(b) => {
-                write_pos_allocs.push((
-                    InfDataParam::EndPos(entry.pos * dp_len + b),
-                    write_state_bit_count,
-                ));
-                write_state_bit_count += 1;
-            }
-            WordWriteUsage::TempBuffer => {
-                write_pos_allocs.push((InfDataParam::TempBuffer(entry.pos), write_state_bit_count));
-                write_state_bit_count += dp_len;
+    if !temp_buffer_words_to_write.is_empty() {
+        let write_first_pos = temp_buffer_words_to_write[0].pos;
+        // skip_while - entry.pos == skip if write_first_pos - skip first write.
+        // skip if possible join first write stage with process stage - then skip
+        //     first writes can be ommited while storing in states (it read directly).
+        // otherwise all writes should be stored in states because all will be in next stages.
+        // use: join_with_first_write_stage && e.pos == write_first_pos to do it.
+        for entry in temp_buffer_words_to_write
+            .iter()
+            .skip_while(|e| join_with_first_write_stage && e.pos == write_first_pos)
+        {
+            // entries in temp_buffer_words_to_write are unique (unique position with usage).
+            // just process single writes
+            match entry.usage {
+                WordWriteUsage::EndPosOutput(b) => {
+                    write_pos_allocs.push((
+                        InfDataParam::EndPos(entry.pos * dp_len + b),
+                        write_state_bit_count,
+                    ));
+                    write_state_bit_count += 1;
+                }
+                WordWriteUsage::TempBuffer => {
+                    write_pos_allocs
+                        .push((InfDataParam::TempBuffer(entry.pos), write_state_bit_count));
+                    write_state_bit_count += dp_len;
+                }
             }
         }
-    }
-
-    // determine next temp buffer position
-    let next_position = if !temp_buffer_words_to_write.is_empty() {
-        temp_buffer_words_to_write[0].pos
-    } else {
-        temp_buffer_step as usize
-    };
-    let last_read_pos = last_pos;
-    // now realize move in temp buffer to next position
-    // will be realized at while read stage.
-    if last_pos < next_position {
-        last_pos += 1; // make move forward
-    } else if last_pos > next_position {
-        last_pos -= 1;
     }
 
     // now first memory address write. If done then should be fused with
@@ -2257,18 +2262,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // * first write to temp buffer is to position at most 1 move forward or backward
     //   * write is filled end pos temp buffer position or temp_buffer write
     if join_with_first_write_stage {
-        total_stages -= 1;  // join write with process stage
+        total_stages -= 1; // join write with process stage
     }
 
     // prepare stages for write words
     let mut first = true;
     for entry in &temp_buffer_words_to_write {
+        // at first write include first move at last read
         if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
             total_stages += 1;
         }
         if entry.pos != last_pos {
             if !filled_tb_pos[entry.pos] {
-                if !(first && last_read_pos == entry.pos && !use_write_mem_address) {
+                if !first && !fuse_read_with_write_temp_buffer_end_pos_read {
                     // exclude special case when last read position == first write position
                     // and no memory write - then fuse read with last read from read phase.
                     total_stages += 1; // add if not filled, and read stage needed
@@ -2281,14 +2287,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     }
     // Now. Add to total_stages stage to move to next data chunk at start.
     // (temp_buffer_step - last_pos)
-    if (temp_buffer_step as usize) + 1 >= last_pos &&
-        (temp_buffer_step as usize) <= last_pos + 1 {
+    // at first write include first move at last read
+    if (temp_buffer_step as usize) + 1 >= last_pos && (temp_buffer_step as usize) <= last_pos + 1 {
         total_stages += 1;
     }
 
     // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
     total_stages += 1 + read_mem_address_and_proc_id_stages;
-    let total_stages = total_stages;    // as not mutable (read-only)
+    let total_stages = total_stages; // as not mutable (read-only)
 
     //
     // MAIN PROCESS:
