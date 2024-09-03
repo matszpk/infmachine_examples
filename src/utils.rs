@@ -2309,6 +2309,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .subvalue(state_start + stage_type_len, state_bit_num);
     let apply_to_read_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
         let mut ov = ov.clone();
+        // TODO: optimize it!!!
         for v in vs {
             let p = read_pos_allocs
                 .binary_search_by_key(param, |x| x.param)
@@ -2325,6 +2326,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     };
     let apply_to_write_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
         let mut ov = ov.clone();
+        // TODO: optimize it!!!
         for v in vs {
             let p = write_pos_allocs
                 .binary_search_by_key(param, |x| x.param)
