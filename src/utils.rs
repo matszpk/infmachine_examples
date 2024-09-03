@@ -2062,6 +2062,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         //
         (read_temp_buffer_stages, last_pos)
     };
+    // last allocation in read phase: dest_end_pos except dest_end_pos that in first write.
 
     // prepare stages for write words
     let write_temp_buffer_stages = {
