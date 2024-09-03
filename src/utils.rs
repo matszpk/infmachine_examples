@@ -2209,7 +2209,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // allocate writes excluding first write
     let write_first_pos = temp_buffer_words_to_write[0].pos;
     // skip_while - entry.pos == skip if write_first_pos - skip first write.
-    for entry in temp_buffer_words_to_write.iter().skip_while(|e| e.pos == write_first_pos) {
+    // skip if possible join first write stage with process stage - then skip
+    //     first writes can be ommited while storing in states (it read directly).
+    // otherwise all writes should be stored in states because all will be in next stages.
+    // use: join_with_first_write_stage && e.pos == write_first_pos to do it.
+    for entry in temp_buffer_words_to_write
+        .iter()
+        .skip_while(|e| join_with_first_write_stage && e.pos == write_first_pos)
+    {
         // entries in temp_buffer_words_to_write are unique (unique position with usage).
         // just process single writes
         match entry.usage {
@@ -2226,6 +2233,23 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
         }
     }
+
+    // determine next temp buffer position
+    let next_position = if !temp_buffer_words_to_write.is_empty() {
+        temp_buffer_words_to_write[0].pos
+    } else {
+        temp_buffer_step as usize
+    };
+    // now realize move in temp buffer to next position
+    // will be realized at while read stage.
+    if last_pos < next_position {
+        last_pos += 1; // make move forward
+    } else if last_pos > next_position {
+        last_pos -= 1;
+    }
+
+    // now first memory address write. If done then should be fused with
+    // store and process stage and include total_stages.
 
     // join last process and first write to one stage if:
     // * first write to memory_address
@@ -2245,6 +2269,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         last_pos = entry.pos;
         first = false;
     }
+
+    // Now. Add to total_stages stage to move to next data chunk at start.
+    // (temp_buffer_step - last_pos)
+
     // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
     total_stages += 1 + read_mem_address_and_proc_id_stages;
     //
