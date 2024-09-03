@@ -2004,22 +2004,22 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // [last_read,move]
     // [[store],process,write,move_to_next]
     // between first write and last read more than one move: and NO read required at write:
-    // [last_read,move] - need store last reads
-    // [movement]
-    // [[store],process,write,move_to_next]
+    // [last_read,move]
+    // [[store],process,movement] - need store first writes
+    // [process,write,move_to_next]
     //
     // first write and last read is same temp buffer position: and read required at write:
     // [last_read] <- fuse read
     // [[store],process,write,move_to_next]
     // between first write and last read only one move: and read required at write:
-    // [last_read,move] - need store last reads
-    // [read]
-    // [[store],process,write,move_to_next]
+    // [last_read,move]
+    // [[store],process,read] - need store first writes
+    // [write,move_to_next]
     // between first write and last read more than one move: and read required at write:
-    // [last_read,move] - need store last reads
-    // [movement]
+    // [last_read,move]
+    // [[store],process,movement] - need store first writes
     // [read]
-    // [[store],process,write,move_to_next]
+    // [write,move_to_next]
     //
     // mem_address write and last read same position as first write to temp buffer
     // and NO read required at write:
@@ -2037,19 +2037,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     //
     // mem_address write and last read same position as first write to temp buffer
     // and read required at write:
-    // [last_read] - need store last reads
-    // [mem_address_read]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // [last_read]
+    // [[store],process,mem_address_read] - need store first writes
+    // [[mem_address_write],move_to_next_mem_address]
     // mem_address write and between last read and first write temp temp buffer is 1 move
     // and read required at write:
-    // [last_read,move] - need store last reads
-    // [mem_address_read]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // [last_read,move]
+    // [[store],process,mem_address_read] - need store first writes
+    // [[mem_address_write],move_to_next_mem_address]
     // mem_address write and between last read and first write temp temp buffer is
     // more than one move and read required at write:
-    // [last_read,move] - need store last reads
-    // [mem_address_read]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
+    // [last_read,move]
+    // [[store],process,mem_address_read] - need store first writes
+    // [[mem_address_write],move_to_next_mem_address]
     // [movement]
 
     // process reading of mem_address and proc_id.
