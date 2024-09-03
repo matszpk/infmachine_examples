@@ -1925,8 +1925,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         pos: usize,
         len: usize,
     }
-    let mut dest_end_pos_state_bit_count = 0; // segment for read end pos for dests
-    let mut dest_end_pos_allocs = Vec::<AllocEntry>::new();
     let mut read_state_bit_count = 0; // segment for rest read data.
     let mut read_pos_allocs = Vec::<AllocEntry>::new();
     let mut write_state_bit_count = 0; // this same segment as for read data.
@@ -2039,6 +2037,43 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // [[store],process,[mem_address_write],move_to_next_mem_address]
     // [movement] <- next temp buffer position
 
+    // end_pos states - states managed in whole loop
+    let dest_end_pos_states = {
+        let first_dest_end_pos = dests[0].1;
+        if dests
+            .into_iter()
+            .any(|(_, end_pos)| *end_pos != first_dest_end_pos)
+        {
+            let mut end_poses = dests
+                .into_iter()
+                .enumerate()
+                .map(|(i, (_, end_pos))| (end_pos, i))
+                .collect::<Vec<_>>();
+            end_poses.sort();
+            end_poses
+        } else {
+            // no dest end pos - because one dest end control all outputs
+            vec![]
+        }
+    };
+    let src_end_pos_states = {
+        if src_params.is_empty() ||
+            // or if all src_params have same end_pos as dest endpos
+            (dest_end_pos_states.is_empty() &&
+                src_params.into_iter().all(|(_, end_pos)| dests[0].1 == *end_pos))
+        {
+            vec![]
+        } else {
+            let mut end_poses = src_params
+                .into_iter()
+                .enumerate()
+                .map(|(i, (_, end_pos))| (end_pos, i))
+                .collect::<Vec<_>>();
+            end_poses.sort();
+            end_poses
+        }
+    };
+
     // process reading of mem_address and proc_id.
     if use_read_mem_address_count != 0 {
         if use_proc_id_count != 0 || !temp_buffer_words_to_read.is_empty() {
@@ -2088,7 +2123,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
         // allocate state bits
         if !first && last_pos != entry.pos {
-            let mut dest_end_pos_set = vec![];
             let mut last_usage = None;
             // in this loop: process all entries
             for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
@@ -2099,41 +2133,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let cur_usage = (entry.usage, matches!(entry.orig_index, FromDest(_)));
                 if Some(cur_usage) != last_usage {
                     // process first entry with different usage or source of original index.
-                    match entry.orig_index {
-                        FromDest(p) => {
-                            if let WordReadUsage::EndPosLimit(b) = entry.usage {
-                                // allocate in dest_end segment
-                                dest_end_pos_set.push(InfDataParam::EndPos(dp_len * p + b));
-                                dest_end_pos_allocs.push(AllocEntry {
+                    if let FromSrc(p) = entry.orig_index {
+                        match entry.usage {
+                            WordReadUsage::EndPosInput(b) => {
+                                // the allocate in read segment
+                                read_pos_allocs.push(AllocEntry {
                                     param: InfDataParam::EndPos(dp_len * p + b),
-                                    pos: dest_end_pos_state_bit_count,
+                                    pos: read_state_bit_count,
                                     len: 1,
                                 });
-                                dest_end_pos_state_bit_count += 1;
-                                if let Some(AllocEntry { param, .. }) = read_pos_allocs.last() {
-                                    if *param == InfDataParam::EndPos(dp_len * p + b) {
-                                        // revert from read segment if found as last
-                                        read_pos_allocs.pop();
-                                        read_state_bit_count -= 1;
-                                    }
-                                }
-                            }
-                        }
-                        FromSrc(p) => match entry.usage {
-                            WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
-                                // if not in dest_end_pos_set
-                                if dest_end_pos_set
-                                    .iter()
-                                    .all(|x| *x != InfDataParam::EndPos(dp_len * p + b))
-                                {
-                                    // the allocate in read segment
-                                    read_pos_allocs.push(AllocEntry {
-                                        param: InfDataParam::EndPos(dp_len * p + b),
-                                        pos: read_state_bit_count,
-                                        len: 1,
-                                    });
-                                    read_state_bit_count += 1;
-                                }
+                                read_state_bit_count += 1;
                             }
                             WordReadUsage::TempBuffer => {
                                 read_pos_allocs.push(AllocEntry {
@@ -2143,7 +2152,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                                 });
                                 read_state_bit_count += dp_len;
                             }
-                        },
+                            _ => (),
+                        }
                     }
                 }
                 last_usage = Some(cur_usage);
@@ -2186,57 +2196,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 false
             }));
     //
-    // find first dest end pos limiters to skip if process and writes are fused.
-    let first_end_pos_in_writes = {
-        let mut first_end_pos_in_writes = Vec::<usize>::new();
-        if use_write_mem_address {
-            // if in use_write_mem_address
-            if let Some((_, end_pos)) = dests
-                .into_iter()
-                .find(|(x, _)| matches!(*x, InfDataParam::MemAddress))
-            {
-                first_end_pos_in_writes.push(*end_pos);
-            }
-        } else if join_with_first_write_stage {
-            // if join with first stage is possible then include first_end_pos_in_writes
-            // to avoid store them in state because
-            use std::collections::HashSet;
-            let first_pos = temp_buffer_words_to_write[0].pos;
-            // exclude set that are used in later after first write
-            let skip_set = temp_buffer_words_to_write
-                .iter()
-                .skip_while(|x| x.pos == first_pos)
-                .map(|entry| dests[entry.orig_index].1)
-                .collect::<HashSet<_>>();
-            for entry in temp_buffer_words_to_write
-                .iter()
-                .take_while(|x| x.pos == first_pos)
-            {
-                // push end pos limit for first dests in temp_buffer_words_to_write order
-                if !skip_set.contains(&dests[entry.orig_index].1) {
-                    // only if not later used
-                    first_end_pos_in_writes.push(dests[entry.orig_index].1);
-                }
-            }
-        }
-        first_end_pos_in_writes
-    };
-    // last allocation in read phase: dest_end_pos except dest_end_pos that in first write.
-    for entry in &temp_buffer_words_to_read[last_pos_idx..] {
-        if let FromDest(p) = entry.orig_index {
-            if let WordReadUsage::EndPosLimit(b) = entry.usage {
-                if first_end_pos_in_writes.iter().all(|x| *x != dp_len * p + b) {
-                    // if not in first_end_pos_in_writes
-                    dest_end_pos_allocs.push(AllocEntry {
-                        param: InfDataParam::EndPos(dp_len * p + b),
-                        pos: dest_end_pos_state_bit_count,
-                        len: 1,
-                    });
-                    dest_end_pos_state_bit_count += 1;
-                }
-            }
-        }
-    }
     total_stages += 2; // include read stage and process stage.
 
     // allocate writes excluding first write
@@ -2321,17 +2280,17 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // fix allocs
     for AllocEntry { pos: t, .. } in &mut read_pos_allocs {
-        *t += dest_end_pos_state_bit_count;
+        *t += src_end_pos_states.len() + dest_end_pos_states.len();
     }
     for AllocEntry { pos: t, .. } in &mut write_pos_allocs {
-        *t += dest_end_pos_state_bit_count;
+        *t += src_end_pos_states.len() + dest_end_pos_states.len();
     }
-    let state_bit_num =
-        dest_end_pos_state_bit_count + std::cmp::max(read_state_bit_count, write_state_bit_count);
+    let state_bit_num = src_end_pos_states.len()
+        + dest_end_pos_states.len()
+        + std::cmp::max(read_state_bit_count, write_state_bit_count);
     // sort allocs
     read_pos_allocs.sort_by_key(|x| x.param);
     write_pos_allocs.sort_by_key(|x| x.param);
-    dest_end_pos_allocs.sort_by_key(|x| x.param);
 
     //
     // MAIN PROCESS:
@@ -2348,41 +2307,37 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .state
         .clone()
         .subvalue(state_start + stage_type_len, state_bit_num);
-    let apply_to_read_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
-        let p = read_pos_allocs
-            .binary_search_by_key(param, |x| x.param)
-            .unwrap();
-        let start = read_pos_allocs[p].pos;
-        let len = read_pos_allocs[p].len;
-        let ovlen = ov.bitnum();
-        ov.clone()
-            .subvalue(0, start)
-            .concat(v)
-            .concat(ov.subvalue(start + len, ovlen - start - len))
+    let apply_to_read_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
+        let mut ov = ov.clone();
+        for v in vs {
+            let p = read_pos_allocs
+                .binary_search_by_key(param, |x| x.param)
+                .unwrap();
+            let start = read_pos_allocs[p].pos;
+            let len = read_pos_allocs[p].len;
+            let ovlen = ov.bitnum();
+            ov = ov
+                .clone()
+                .subvalue(0, start)
+                .concat(v.clone())
+                .concat(ov.subvalue(start + len, ovlen - start - len))
+        }
     };
-    let apply_to_write_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
-        let p = read_pos_allocs
-            .binary_search_by_key(param, |x| x.param)
-            .unwrap();
-        let start = write_pos_allocs[p].pos;
-        let len = write_pos_allocs[p].len;
-        let ovlen = ov.bitnum();
-        ov.clone()
-            .subvalue(0, start)
-            .concat(v)
-            .concat(ov.subvalue(start + len, ovlen - start - len))
-    };
-    let apply_to_dest_end_pos_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
-        let p = dest_end_pos_allocs
-            .binary_search_by_key(param, |x| x.param)
-            .unwrap();
-        let start = dest_end_pos_allocs[p].pos;
-        let len = dest_end_pos_allocs[p].len;
-        let ovlen = ov.bitnum();
-        ov.clone()
-            .subvalue(0, start)
-            .concat(v)
-            .concat(ov.subvalue(start + len, ovlen - start - len))
+    let apply_to_write_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
+        let mut ov = ov.clone();
+        for v in vs {
+            let p = write_pos_allocs
+                .binary_search_by_key(param, |x| x.param)
+                .unwrap();
+            let start = write_pos_allocs[p].pos;
+            let len = write_pos_allocs[p].len;
+            let ovlen = ov.bitnum();
+            ov = ov
+                .clone()
+                .subvalue(0, start)
+                .concat(v.clone())
+                .concat(ov.subvalue(start + len, ovlen - start - len))
+        }
     };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
