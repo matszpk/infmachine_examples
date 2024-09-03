@@ -2316,6 +2316,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         stage_type_len + state_bit_num + func.state_len(),
         input,
     );
+    let state_vars = input.state.clone().subvalue(
+        state_start + stage_type_len, state_bit_num);
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
