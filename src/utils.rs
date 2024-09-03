@@ -2034,23 +2034,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // [last_read,move]
     // [[store],process,[mem_address_write],move_to_next_mem_address]
     // [movement] <- next temp buffer position
-    //
-    // mem_address write and last read same position as first write to temp buffer
-    // and read required at write:
-    // [last_read]
-    // [[store],process,mem_address_read] - need store first writes
-    // [[mem_address_write],move_to_next_mem_address]
-    // mem_address write and between last read and first write temp temp buffer is 1 move
-    // and read required at write:
-    // [last_read,move]
-    // [[store],process,mem_address_read] - need store first writes
-    // [[mem_address_write],move_to_next_mem_address]
-    // mem_address write and between last read and first write temp temp buffer is
-    // more than one move and read required at write:
-    // [last_read,move]
-    // [[store],process,mem_address_read] - need store first writes
-    // [[mem_address_write],move_to_next_mem_address]
-    // [movement]
 
     // process reading of mem_address and proc_id.
     if use_read_mem_address_count != 0 {
@@ -2072,7 +2055,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // if in first write and if no other stage between last read and first write -
     // then get from input.dpval not from state.
     let mut last_pos_idx = 0;
-    let mut read_temp_buffer_stages = 0;
+    let mut total_stages = 0;
     let mut last_pos = 0;
     let mut first = true;
     // queue: that holds all entries with same temp buffer pos
@@ -2085,9 +2068,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 (entry.pos + 2 < last_pos
                 || entry.pos > last_pos + 2))
         {
-            read_temp_buffer_stages += 1;
+            total_stages += 1;
         } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
-            read_temp_buffer_stages -= 1; // store stage fusion with read stage
+            total_stages -= 1; // store stage fusion with read stage
         }
 
         // allocate state bits
@@ -2140,15 +2123,25 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         // reading
         if first || entry.pos != last_pos {
-            read_temp_buffer_stages += 2; // include read stage and store stage.
+            total_stages += 2; // include read stage and store stage.
         }
         // rest of iteration
         last_pos = entry.pos;
         last_usage = Some(entry.usage);
         first = false;
     }
+    // determine join with process stage and first write stage
+    let first_write_pos = temp_buffer_words_to_write[0].pos;
+    let join_with_first_write_stage = use_write_mem_address
+        // if only one move needed to first write position
+        || ((first_write_pos + 1 >= last_pos
+            && first_write_pos <= last_pos + 1) &&
+            // if whole temp buffer data part
+            (matches!(temp_buffer_words_to_write[0].usage, WordWriteUsage::TempBuffer)
+                //  or filled by all end pos outputs
+                || filled_tb_pos[temp_buffer_words_to_write[0].pos]));
     //
-    // find first dest end pos limiters.
+    // find first dest end pos limiters to skip if process and writes are fused.
     let first_end_pos_in_writes = {
         let mut first_end_pos_in_writes = Vec::<usize>::new();
         if use_write_mem_address {
@@ -2159,14 +2152,26 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             {
                 first_end_pos_in_writes.push(*end_pos);
             }
-        } else {
+        } else if join_with_first_write_stage {
+            // if join with first stage is possible then include first_end_pos_in_writes
+            // to avoid store them in state because
+            use std::collections::HashSet;
             let first_pos = temp_buffer_words_to_write[0].pos;
+            // exclude set that are used in later after first write
+            let skip_set = temp_buffer_words_to_write
+                .iter()
+                .skip_while(|x| x.pos == first_pos)
+                .map(|entry| dests[entry.orig_index].1)
+                .collect::<HashSet<_>>();
             for entry in temp_buffer_words_to_write
                 .iter()
                 .take_while(|x| x.pos == first_pos)
             {
                 // push end pos limit for first dests in temp_buffer_words_to_write order
-                first_end_pos_in_writes.push(dests[entry.orig_index].1);
+                if !skip_set.contains(&dests[entry.orig_index].1) {
+                    // only if not later used
+                    first_end_pos_in_writes.push(dests[entry.orig_index].1);
+                }
             }
         }
         first_end_pos_in_writes
@@ -2186,7 +2191,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
         }
     }
-    read_temp_buffer_stages += 1; // include read stage.
+    total_stages += 2; // include read stage and process stage.
 
     // join last process and first write to one stage if:
     // * first write to memory_address
