@@ -1886,9 +1886,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // if temp buffer data part in dest with end positions is fully filled tehn
     // write can be done in one stage without reading data part to keep other end pos markers.
     
+    // All plan divided into 4 phases: a reading phase, a processing phase (one stage),
+    // a writing stage, a moving back phase (move back data positions to start).
     // Allocation of states in order:
     // * all end pos in dests to limit writes,
-    // * rest of data.
+    // * rest of data to read (a reading phase) or data to write (in a writing phase)
+    // [DEST_END_POS,{ALL_READ_DATA|WRITE_DATA}]
 
     // prepare plan for stages and extra states
     let use_read_mem_address_count = src_params
