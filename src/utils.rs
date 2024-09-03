@@ -2309,6 +2309,17 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // MAIN PROCESS:
     // circuit generation: stages generation.
     //
+    let state_start = output_state.bitnum();
+    let stage_type_len = calc_log_bits(total_stages);
+    extend_output_state(
+        state_start,
+        stage_type_len + state_bit_num + func.state_len(),
+        input,
+    );
+    let func_state = input.state.clone().subvalue(
+        state_start + stage_type_len + state_bit_num,
+        func.state_len(),
+    );
 
     (InfParOutputSys::new(input.config()), true.into())
 }
