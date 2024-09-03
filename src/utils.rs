@@ -1919,7 +1919,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // * rest of data to read (a reading phase) or data to write (in a writing phase)
     // [DEST_END_POS,{ALL_READ_DATA|WRITE_DATA}]
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Clone, Copy, Debug)]
     struct AllocEntry {
         param: InfDataParam,
         pos: usize,
@@ -2329,9 +2329,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let state_bit_num =
         dest_end_pos_state_bit_count + std::cmp::max(read_state_bit_count, write_state_bit_count);
     // sort allocs
-    read_pos_allocs.sort();
-    write_pos_allocs.sort();
-    dest_end_pos_allocs.sort();
+    read_pos_allocs.sort_by_key(|x| x.param);
+    write_pos_allocs.sort_by_key(|x| x.param);
+    dest_end_pos_allocs.sort_by_key(|x| x.param);
 
     //
     // MAIN PROCESS:
@@ -2344,10 +2344,46 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         stage_type_len + state_bit_num + func.state_len(),
         input,
     );
-    let state_vars = input
+    let default_state_vars = input
         .state
         .clone()
         .subvalue(state_start + stage_type_len, state_bit_num);
+    let apply_to_read_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
+        let p = read_pos_allocs
+            .binary_search_by_key(param, |x| x.param)
+            .unwrap();
+        let start = read_pos_allocs[p].pos;
+        let len = read_pos_allocs[p].len;
+        let ovlen = ov.bitnum();
+        ov.clone()
+            .subvalue(0, start)
+            .concat(v)
+            .concat(ov.subvalue(start + len, ovlen - start - len))
+    };
+    let apply_to_write_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
+        let p = read_pos_allocs
+            .binary_search_by_key(param, |x| x.param)
+            .unwrap();
+        let start = write_pos_allocs[p].pos;
+        let len = write_pos_allocs[p].len;
+        let ovlen = ov.bitnum();
+        ov.clone()
+            .subvalue(0, start)
+            .concat(v)
+            .concat(ov.subvalue(start + len, ovlen - start - len))
+    };
+    let apply_to_dest_end_pos_state_vars = |ov: UDynVarSys, param, v: UDynVarSys| {
+        let p = dest_end_pos_allocs
+            .binary_search_by_key(param, |x| x.param)
+            .unwrap();
+        let start = dest_end_pos_allocs[p].pos;
+        let len = dest_end_pos_allocs[p].len;
+        let ovlen = ov.bitnum();
+        ov.clone()
+            .subvalue(0, start)
+            .concat(v)
+            .concat(ov.subvalue(start + len, ovlen - start - len))
+    };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
