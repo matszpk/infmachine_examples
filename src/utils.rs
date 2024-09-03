@@ -1861,6 +1861,48 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // TODO: check full filling for temp buffer pos that holds end pos to writes
     // if temp buffer data part in dest with end positions is fully filled tehn
     // write can be done in one stage without reading data part to keep other end pos markers.
+    let filled_tb_pos = {
+        let mut filled_tb_pos = vec![false; temp_buffer_step as usize];
+        let mut last_pos = temp_buffer_words_to_write[0].pos;
+        let mut last_pos_idx = 0;
+        for (i, entry) in temp_buffer_words_to_write.iter().enumerate() {
+            if last_pos != entry.pos {
+                if matches!(
+                    temp_buffer_words_to_write[last_pos_idx].usage,
+                    WordWriteUsage::EndPosOutput(_)
+                ) {
+                    let mut fill = vec![false; dp_len];
+                    // check if all filled
+                    for entry in &temp_buffer_words_to_write[last_pos_idx..i] {
+                        if let WordWriteUsage::EndPosOutput(b) = entry.usage {
+                            fill[b] = true;
+                        }
+                    }
+                    // set if all bits are filled
+                    filled_tb_pos[last_pos] = fill.into_iter().all(|x| x);
+                }
+                // new usage
+                last_pos_idx = i;
+            }
+            last_pos = entry.pos;
+        }
+        // last
+        if matches!(
+            temp_buffer_words_to_write[last_pos_idx].usage,
+            WordWriteUsage::EndPosOutput(_)
+        ) {
+            let mut fill = vec![false; dp_len];
+            // check if all filled
+            for entry in &temp_buffer_words_to_write[last_pos_idx..] {
+                if let WordWriteUsage::EndPosOutput(b) = entry.usage {
+                    fill[b] = true;
+                }
+            }
+            // set if all bits are filled
+            filled_tb_pos[last_pos] = fill.into_iter().all(|x| x);
+        }
+        filled_tb_pos
+    };
 
     // All plan divided into 4 phases: a reading phase, a processing phase (one stage),
     // a writing stage, a moving back phase (move back data positions to start).
