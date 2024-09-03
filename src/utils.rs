@@ -1981,6 +1981,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let (read_temp_buffer_stages, last_pos) = {
         let mut read_temp_buffer_stages = 0;
         let mut last_pos = 0;
+        let mut last_pos_idx = 0;
         let mut first = true;
         // queue: that holds all entries with same temp buffer pos
         // let mut last_same_pos_idx = 0;
@@ -2002,7 +2003,52 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 read_temp_buffer_stages -= 1; // store stage fusion
             }
             if last_pos != entry.pos {
-                // last_same_pos_idx = i;
+                // allocate state bits
+                let mut dest_end_pos_set = vec![];
+                for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
+                    match entry.orig_index {
+                        FromDest(p) => {
+                            if let WordReadUsage::EndPosLimit(b) = entry.usage {
+                                // allocate in dest_end segment
+                                dest_end_pos_set.push(InfDataParam::EndPos(dp_len * p + b));
+                                dest_end_pos_allocs.push((
+                                    InfDataParam::EndPos(dp_len * p + b),
+                                    dest_end_pos_state_bit_count,
+                                ));
+                                dest_end_pos_state_bit_count += 1;
+                                if let Some((param, _)) = read_pos_allocs.last() {
+                                    if *param == InfDataParam::EndPos(dp_len * p + b) {
+                                        // revert from read segment if found as last
+                                        read_pos_allocs.pop();
+                                        read_state_bit_count -= 1;
+                                    }
+                                }
+                            }
+                        }
+                        FromSrc(p) => match entry.usage {
+                            WordReadUsage::EndPosLimit(b) | WordReadUsage::EndPosInput(b) => {
+                                // if not in dest_end_pos_set
+                                if dest_end_pos_set
+                                    .iter()
+                                    .all(|x| *x != InfDataParam::EndPos(dp_len * p + b))
+                                {
+                                    // the allocate in read segment
+                                    read_pos_allocs.push((
+                                        InfDataParam::EndPos(dp_len * p + b),
+                                        read_state_bit_count,
+                                    ));
+                                    read_state_bit_count += 1;
+                                }
+                            }
+                            WordReadUsage::TempBuffer => {
+                                read_pos_allocs
+                                    .push((InfDataParam::TempBuffer(p), read_state_bit_count));
+                                read_state_bit_count += dp_len;
+                            }
+                        },
+                    }
+                }
+                last_pos_idx = i;
             }
             // reading
             if first || entry.pos != last_pos {
