@@ -1754,6 +1754,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             assert!(end_pos_words.binary_search(pos).is_err());
         }
     }
+    // TODO: check whether dests have only one per different InfDataParam.
     // find unique words used to read
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum WordReadUsage {
