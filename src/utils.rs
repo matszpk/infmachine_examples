@@ -1858,8 +1858,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         temp_buffer_words_to_write.dedup();
         temp_buffer_words_to_write
     };
-    // TODO: check full filling for temp buffer pos that holds end pos to writes
-    // if temp buffer data part in dest with end positions is fully filled tehn
+    // check full filling for temp buffer pos that holds end pos to write
+    // if temp buffer data part in dest with end positions is fully filled then
     // write can be done in one stage without reading data part to keep other end pos markers.
     let filled_tb_pos = {
         let mut filled_tb_pos = vec![false; temp_buffer_step as usize];
