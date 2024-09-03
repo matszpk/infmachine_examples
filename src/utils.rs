@@ -1718,10 +1718,18 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_eq!(func.input_num(), src_params.len());
     assert_eq!(func.output_num(), dests.len());
-    // src_params can be empty (no input for functions)
-    assert!(!dests.is_empty());
     let config = input.config();
     let dp_len = config.data_part_len as usize;
+    // src_params can be empty (no input for functions)
+    assert!(!dests.is_empty());
+    for (data_param, end_pos) in src_params.iter().chain(dests.iter()) {
+        let good = match data_param {
+            InfDataParam::TempBuffer(pos) => *pos < dp_len,
+            InfDataParam::EndPos(idx) => *idx < dp_len * (temp_buffer_step as usize),
+            _ => true,
+        };
+        assert!(good && *end_pos < dp_len * (temp_buffer_step as usize));
+    }
     // words where is end position markers
     let end_pos_words = {
         let mut end_pos_words = src_params
