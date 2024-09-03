@@ -1882,12 +1882,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         temp_buffer_words_to_write.dedup();
         temp_buffer_words_to_write
     };
+    // TODO: check full filling for temp buffer pos that holds end pos to writes
+    // if temp buffer data part in dest with end positions is fully filled tehn
+    // write can be done in one stage without reading data part to keep other end pos markers.
+    
+    // Allocation of states in order:
+    // * all end pos in dests to limit writes,
+    // * rest of data.
 
     // prepare plan for stages and extra states
-    // about end_pos usage:
-    // * only one end pos - do not add usage for OR all data
-    // if only one dest end pos and not used other places
-    // prepare stages for read words
     let use_read_mem_address_count = src_params
         .iter()
         .filter(|(dp, _)| matches!(dp, InfDataParam::MemAddress))
