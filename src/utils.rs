@@ -2240,6 +2240,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     } else {
         temp_buffer_step as usize
     };
+    let last_read_pos = last_pos;
     // now realize move in temp buffer to next position
     // will be realized at while read stage.
     if last_pos < next_position {
@@ -2255,8 +2256,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // * first write to memory_address
     // * first write to temp buffer is to position at most 1 move forward or backward
     //   * write is filled end pos temp buffer position or temp_buffer write
+    if join_with_first_write_stage {
+        total_stages -= 1;  // join write with process stage
+    }
 
-    // TODO: fix calculation of write stages.
     // prepare stages for write words
     let mut first = true;
     for entry in &temp_buffer_words_to_write {
@@ -2264,17 +2267,33 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             total_stages += 1;
         }
         if entry.pos != last_pos {
+            if !filled_tb_pos[entry.pos] {
+                if !(first && last_read_pos == entry.pos && !use_write_mem_address) {
+                    // exclude special case when last read position == first write position
+                    // and no memory write - then fuse read with last read from read phase.
+                    total_stages += 1; // add if not filled, and read stage needed
+                }
+            }
             total_stages += 1;
         }
         last_pos = entry.pos;
         first = false;
     }
-
     // Now. Add to total_stages stage to move to next data chunk at start.
     // (temp_buffer_step - last_pos)
+    if (temp_buffer_step as usize) + 1 >= last_pos &&
+        (temp_buffer_step as usize) <= last_pos + 1 {
+        total_stages += 1;
+    }
 
     // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
     total_stages += 1 + read_mem_address_and_proc_id_stages;
+    let total_stages = total_stages;    // as not mutable (read-only)
+
     //
+    // MAIN PROCESS:
+    // circuit generation: stages generation.
+    //
+
     (InfParOutputSys::new(input.config()), true.into())
 }
