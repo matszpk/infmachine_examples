@@ -1777,8 +1777,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     }
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum WordWriteUsage {
-        // end pos to limit other input. parameter is bit in word.
-        EndPosLimit(usize),
         // end pos as output. parameter is bit in word.
         EndPosOutput(usize),
         // write output from temp buffer
@@ -1837,12 +1835,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let temp_buffer_words_to_write = {
         let mut temp_buffer_words_to_write = vec![];
         for (i, (data_param, end_pos_limit)) in dests.into_iter().enumerate() {
-            // push from end pos limiter
-            temp_buffer_words_to_write.push(WordWriteEntry {
-                pos: end_pos_limit / dp_len,
-                usage: WordWriteUsage::EndPosLimit(end_pos_limit % dp_len),
-                orig_index: i,
-            });
             // push from data param
             match data_param {
                 InfDataParam::EndPos(pos) => {
