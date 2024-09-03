@@ -2058,6 +2058,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut first = true;
     // queue: that holds all entries with same temp buffer pos
     // let mut last_same_pos_idx = 0;
+    // in this loop: process entry excluding last entries with different position.
     for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
         // movement stage
         if (first && entry.pos != last_pos)
@@ -2075,6 +2076,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         if !first && last_pos != entry.pos {
             let mut dest_end_pos_set = vec![];
             let mut last_usage = None;
+            // in this loop: process all entries
             for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
                 // Important notice about ordering:
                 // Next majority after usage is enum's variant (FromDest and FromSrc)
@@ -2262,6 +2264,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // prepare stages for write words
     let mut first = true;
     let mut write_last_pos = None;
+    // in this loop: all entries
     for entry in &temp_buffer_words_to_write {
         if Some(entry.pos) != write_last_pos {
             // at first write include first move at last read
