@@ -511,7 +511,7 @@ pub fn init_machine_end_pos_stage(
 
 // function parameters in infinite data (memaddrss, tempbuffer, procids).
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InfDataParam {
     MemAddress,
     ProcId,
@@ -1754,7 +1754,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             assert!(end_pos_words.binary_search(pos).is_err());
         }
     }
-    // TODO: check whether dests have only one per different InfDataParam.
+    {
+        let mut dests = dests.to_vec();
+        dests.sort();
+        let old_dest_len = dests.len();
+        dests.dedup();
+        // check whether dests have only one per different InfDataParam.
+        assert_eq!(old_dest_len, dests.len());
+    }
     // find unique words used to read
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
     enum WordReadUsage {
@@ -1924,16 +1931,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .iter()
         .filter(|(dp, _)| matches!(dp, InfDataParam::MemAddress))
         .count();
-    let use_write_mem_address_count = dests
+    let use_write_mem_address = dests
         .iter()
-        .filter(|(dp, _)| matches!(dp, InfDataParam::MemAddress))
-        .count();
+        .any(|(dp, _)| matches!(dp, InfDataParam::MemAddress));
     let use_proc_id_count = src_params
         .iter()
         .filter(|(dp, _)| matches!(dp, InfDataParam::ProcId))
         .count();
     let read_mem_address_and_proc_id_stages =
-        usize::from(use_read_mem_address_count != 0 && use_write_mem_address_count != 0)
+        usize::from(use_read_mem_address_count != 0 && use_write_mem_address)
             + usize::from(use_proc_id_count != 0);
 
     let mut last_usage = None;
@@ -1959,6 +1965,35 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     //   and first movement - use read data and make first move if needed
     //   important: dpr - must be set by src end pos
     // calculation or store stage - can be fused with read stage.
+    // scheme if one one move to next position:
+    // [read, move]
+    // [store, read, [move]] <- next read, next position
+    // scheme if one two moves to next position:
+    // [read, move]
+    // [store, move]
+    // [read,[move]].... <- next read, next position
+    // scheme if one more than two moves to next position:
+    // [read, move]
+    // [store, move]
+    // [movement stage]
+    // [read, [move]] <- next read, next position
+
+    // write stage scheme if filled endposes or other kind:
+    //   if one step to next position:
+    //   [write, move]
+    //   [write, move] <- next position
+    //   if more than one step to next position:
+    //   [write, move]
+    //   [movement]
+    //   [write, move] <- next position:
+    // write not fully filled endposes:
+    //   if one step to next position:
+    //   [read]
+    //   [write, move] <- next position
+    //   if more than one step to next position:
+    //   [read]
+    //   [write, move]
+    //   [movement]
 
     // process reading of mem_address and proc_id.
     if use_read_mem_address_count != 0 {
@@ -1979,20 +2014,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // last_pos - last read position in temp buffer
     // if in first write and if no other stage between last read and first write -
     // then get from input.dpval not from state.
+    let mut last_pos_idx = 0;
     let (read_temp_buffer_stages, last_pos) = {
         let mut read_temp_buffer_stages = 0;
         let mut last_pos = 0;
-        let mut last_pos_idx = 0;
         let mut first = true;
         // queue: that holds all entries with same temp buffer pos
         // let mut last_same_pos_idx = 0;
         for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
             // movement stage
-            let movement_stage_needed = (first && entry.pos != last_pos)
-                || (!first &&
-                    // or if requred movement ot next position requires more than one move
-                    (entry.pos + 1 < last_pos
-                    || entry.pos > last_pos + 1));
             if (first && entry.pos != last_pos)
                 || (!first &&
                     // or if requred movement to 2 next positiona requires more than one move
@@ -2001,10 +2031,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             {
                 read_temp_buffer_stages += 1;
             } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
-                read_temp_buffer_stages -= 1; // store stage fusion
+                read_temp_buffer_stages -= 1; // store stage fusion with read stage
             }
-            if last_pos != entry.pos {
-                // allocate state bits
+
+            // allocate state bits
+            if !first && last_pos != entry.pos {
                 let mut dest_end_pos_set = vec![];
                 for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
                     match entry.orig_index {
@@ -2063,7 +2094,49 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         //
         (read_temp_buffer_stages, last_pos)
     };
+    // find first dest end pos limiters.
+    let first_end_pos_in_writes = {
+        let mut first_end_pos_in_writes = Vec::<usize>::new();
+        if use_write_mem_address {
+            // if in use_write_mem_address
+            if let Some((_, end_pos)) = dests
+                .into_iter()
+                .find(|(x, _)| matches!(*x, InfDataParam::MemAddress))
+            {
+                first_end_pos_in_writes.push(*end_pos);
+            }
+        } else {
+            let first_pos = temp_buffer_words_to_write[0].pos;
+            for entry in temp_buffer_words_to_write
+                .iter()
+                .take_while(|x| x.pos == first_pos)
+            {
+                // push end pos limit for first dests in temp_buffer_words_to_write order
+                first_end_pos_in_writes.push(dests[entry.orig_index].1);
+            }
+        }
+        first_end_pos_in_writes
+    };
     // last allocation in read phase: dest_end_pos except dest_end_pos that in first write.
+    for entry in &temp_buffer_words_to_read[last_pos_idx..] {
+        if let FromDest(p) = entry.orig_index {
+            if let WordReadUsage::EndPosLimit(b) = entry.usage {
+                if first_end_pos_in_writes.iter().all(|x| *x != dp_len * p + b) {
+                    // if not in first_end_pos_in_writes
+                    dest_end_pos_allocs.push((
+                        InfDataParam::EndPos(dp_len * p + b),
+                        dest_end_pos_state_bit_count,
+                    ));
+                    dest_end_pos_state_bit_count += 1;
+                }
+            }
+        }
+    }
+
+    // join last process and first write to one stage if:
+    // * first write to memory_address
+    // * first write to temp buffer is to position at most 1 move forward or backward
+    //   * write is filled end pos temp buffer position or temp_buffer write
 
     // prepare stages for write words
     let write_temp_buffer_stages = {
