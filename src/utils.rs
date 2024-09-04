@@ -2107,20 +2107,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // queue: that holds all entries with same temp buffer pos.
     // in this loop: process entry excluding last entries with different position.
     for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
-        // movement stage
-        if (first && entry.pos != last_pos)
-            || (!first &&
-                // or if requred movement to 2 next positiona requires more than one move
-                (entry.pos + 2 < last_pos
-                || entry.pos > last_pos + 2))
-        {
-            total_stages += 1;
-        } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
-            total_stages -= 1; // store stage fusion with read stage
-        }
-
         // allocate state bits
         if !first && last_pos != entry.pos {
+            // movement stage
+            if (first && entry.pos != last_pos)
+                || (!first &&
+                    // or if requred movement to 2 next positiona requires more than one move
+                    (entry.pos + 2 < last_pos
+                    || entry.pos > last_pos + 2))
+            {
+                total_stages += 1;
+            } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
+                total_stages -= 1; // store stage fusion with read stage
+            }
             let mut last_usage = None;
             // in this loop: process all entries
             for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
@@ -2156,11 +2155,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     last_usage = Some(cur_usage);
                 }
             }
+            // reading
+            if first || entry.pos != last_pos {
+                total_stages += 2; // include read stage and store stage.
+            }
             last_pos_idx = i;
-        }
-        // reading
-        if first || entry.pos != last_pos {
-            total_stages += 2; // include read stage and store stage.
         }
         // rest of iteration
         last_pos = entry.pos;
