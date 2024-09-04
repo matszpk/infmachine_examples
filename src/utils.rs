@@ -2012,11 +2012,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         .into();
         output.dpr = true.into();
-        output.dpmove = if !use_write_mem_address && *param == InfDataParam::MemAddress {
+        output.dpmove = if (!use_write_mem_address && *param == InfDataParam::MemAddress)
+            || *param == InfDataParam::ProcId
+        {
             DPMOVE_FORWARD
         } else {
             DPMOVE_NOTHING
-        }.into();
+        }
+        .into();
         outputs.push(output);
         // store stage
         let param_len = if let InfDataParam::EndPos(_) = param {
