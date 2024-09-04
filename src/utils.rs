@@ -2361,6 +2361,24 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         end_poses.sort_by_key(|(x, _)| *x);
         end_poses
     };
+    let get_updates_for_reads = |prev_reads: &[InfDataParam], input: &InfParInputSys| {
+        prev_reads
+            .iter()
+            .map(|param| {
+                (
+                    *param,
+                    match param {
+                        InfDataParam::EndPos(p) => {
+                            UDynVarSys::filled(1, input.dpval.bit(p % dp_len))
+                        }
+                        InfDataParam::MemAddress
+                        | InfDataParam::ProcId
+                        | InfDataParam::TempBuffer(_) => input.dpval.clone(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>()
+    };
     let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[(Option<usize>, BoolVarSys)]| {
         let mut start = 0;
         let mut bitvec = vec![];
@@ -2515,26 +2533,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 // read stage and store previous reads
                 let mut output = output_base.clone();
                 let mut new_state = default_state_vars.clone();
-                {
-                    let updates = prev_reads
-                        .iter()
-                        .map(|param| {
-                            (
-                                *param,
-                                match param {
-                                    InfDataParam::EndPos(p) => {
-                                        UDynVarSys::filled(1, input.dpval.bit(p % dp_len))
-                                    }
-                                    InfDataParam::MemAddress
-                                    | InfDataParam::ProcId
-                                    | InfDataParam::TempBuffer(_) => input.dpval.clone(),
-                                },
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    // update stage
-                    new_state = apply_to_state_vars(&read_pos_allocs, &new_state, &updates);
-                }
+                // update stage
+                new_state = apply_to_state_vars(
+                    &read_pos_allocs,
+                    &new_state,
+                    &get_updates_for_reads(&prev_reads, input),
+                );
                 prev_reads.clear();
                 // update new end pos states
                 new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
