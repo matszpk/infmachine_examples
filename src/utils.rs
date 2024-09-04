@@ -2041,7 +2041,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // [movement] <- next temp buffer position
 
     // end_pos states - states managed in whole loop
-    let dest_end_pos_states = {
+    let (dest_end_pos_states, have_dest_end_pos_states) = {
         let first_dest_end_pos = dests[0].1;
         if dests
             .into_iter()
@@ -2053,27 +2053,31 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 .map(|(i, (_, end_pos))| (end_pos, i))
                 .collect::<Vec<_>>();
             end_poses.sort();
-            end_poses
+            (end_poses, true)
         } else {
             // no dest end pos - because one dest end control all outputs
-            vec![]
+            (vec![], false)
         }
     };
-    let src_end_pos_states = {
+    let (end_pos_states, have_src_pos_states) = {
         if src_params.is_empty() ||
             // or if all src_params have same end_pos as dest endpos
             (dest_end_pos_states.is_empty() &&
                 src_params.into_iter().all(|(_, end_pos)| dests[0].1 == *end_pos))
         {
-            vec![]
+            (dest_end_pos_states, false)
         } else {
-            let mut end_poses = src_params
+            let mut end_poses = dest_end_pos_states
                 .into_iter()
-                .enumerate()
-                .map(|(i, (_, end_pos))| (end_pos, i))
+                .chain(
+                    src_params
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (_, end_pos))| (end_pos, i)),
+                )
                 .collect::<Vec<_>>();
             end_poses.sort();
-            end_poses
+            (end_poses, true)
         }
     };
 
@@ -2282,14 +2286,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // fix allocs
     for AllocEntry { pos: t, .. } in &mut read_pos_allocs {
-        *t += src_end_pos_states.len() + dest_end_pos_states.len();
+        *t += end_pos_states.len();
     }
     for AllocEntry { pos: t, .. } in &mut write_pos_allocs {
-        *t += src_end_pos_states.len() + dest_end_pos_states.len();
+        *t += end_pos_states.len();
     }
-    let state_bit_num = src_end_pos_states.len()
-        + dest_end_pos_states.len()
-        + std::cmp::max(read_state_bit_count, write_state_bit_count);
+    let state_bit_num =
+        end_pos_states.len() + std::cmp::max(read_state_bit_count, write_state_bit_count);
     // sort allocs
     read_pos_allocs.sort_by_key(|x| x.param);
     write_pos_allocs.sort_by_key(|x| x.param);
@@ -2333,29 +2336,17 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             // to dynintvar
             UDynVarSys::from_iter(bitvec)
         };
-    let or_and_apply_to_state_vars =
+    let or_with_state_vars =
         |allocs: &[AllocEntry], ov: &UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
             // get value, pos and lengths tuple
-            let mut val_and_pos = vs
-                .into_iter()
+            vs.into_iter()
                 .map(|(param, v)| {
                     let p = allocs.binary_search_by_key(param, |x| x.param).unwrap();
-                    (read_pos_allocs[p].pos, read_pos_allocs[p].len, v.clone())
+                    let pos = read_pos_allocs[p].pos;
+                    let len = read_pos_allocs[p].len;
+                    UDynVarSys::from_iter((0..len).map(|i| ov.bit(pos + i))) | v.clone()
                 })
-                .collect::<Vec<_>>();
-            // sort by position
-            val_and_pos.sort_by_key(|(p, _, _)| *p);
-            let mut start = 0;
-            let mut bitvec = vec![];
-            // construct bit vector
-            for (pos, len, v) in val_and_pos {
-                bitvec.extend((start..pos).map(|i| ov.bit(i)));
-                bitvec.extend((0..len).map(|i| v.bit(i) | ov.bit(pos + i)));
-                start = pos + len;
-            }
-            bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
-            // to dynintvar
-            UDynVarSys::from_iter(bitvec)
+                .collect::<Vec<_>>()
         };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
@@ -2509,7 +2500,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             prev_reads.clear();
             // create end_pos_states
             {
-                //
+                // update stage
+                //new_state = apply_to_state_vars(&dest_pos_allocs, &new_state, &updates);
             }
             // output setup
             output.state = create_out_state(
