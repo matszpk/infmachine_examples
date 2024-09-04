@@ -1790,10 +1790,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
     }
     // src params
-    for (param, end_pos) in src_params {
+    for (param, _) in src_params {
         match param {
             InfDataParam::EndPos(p) => {
-                let pos = *end_pos / dp_len;
+                let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
                 }
@@ -1815,11 +1815,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     }
     total_stages += 1; // process stage and store results
     let mut write_state_bits = 0;
-    for (param, end_pos) in dests {
+    for (param, _) in dests {
         match param {
             InfDataParam::EndPos(p) => {
                 total_stages += 1; // read stage for keep values
-                let pos = *end_pos / dp_len;
+                let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
                 }
@@ -1933,7 +1933,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 );
                 let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
                     if x < i || x >= i + end_poses.len() {
-                        state_vars.bit(i)
+                        state_vars.bit(x)
                     } else {
                         end_poses.bit(x - i).clone()
                     }
@@ -1943,11 +1943,99 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     new_state_vars,
                     func_state.clone(),
                 );
+                outputs.push(output);
             }
             last_pos = pos;
         }
     }
     // read params
+    let mut state_pos = src_params.len() + dests.len();
+    for (param, _) in src_params {
+        let pos = match param {
+            InfDataParam::EndPos(p) => {
+                let pos = *p / dp_len;
+                if last_pos != pos {
+                    total_stages += 1; // movement stage
+                }
+                Some(pos)
+            }
+            InfDataParam::TempBuffer(pos) => {
+                if last_pos != *pos {
+                    total_stages += 1; // movement stage
+                }
+                Some(*pos)
+            }
+            _ => None,
+        };
+        if let Some(pos) = pos {
+            if last_pos != pos {
+                // movement stage
+                let (output, _) = move_data_pos_stage(
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len(), stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    input,
+                    DKIND_TEMP_BUFFER,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_FORWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
+                outputs.push(output);
+                last_pos = pos;
+            }
+        }
+        // read stage
+        let mut output = output_base.clone();
+        output.state = create_out_state(
+            UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+            state_vars.clone(),
+            func_state.clone(),
+        );
+        output.dkind = match param {
+            InfDataParam::MemAddress => DKIND_MEM_ADDRESS,
+            InfDataParam::ProcId => DKIND_PROC_ID,
+            InfDataParam::TempBuffer(_) | InfDataParam::EndPos(_) => DKIND_TEMP_BUFFER,
+        }
+        .into();
+        output.dpr = true.into();
+        outputs.push(output);
+        // store stage
+        let param_len = if let InfDataParam::EndPos(_) = param {
+            dp_len
+        } else {
+            1
+        };
+        let mut output = output_base.clone();
+        let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
+            if x < state_pos || x >= state_pos + param_len {
+                state_vars.bit(x)
+            } else {
+                input.dpval.bit(x - state_pos)
+            }
+        }));
+        output.state = create_out_state(
+            UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+            new_state_vars,
+            func_state.clone(),
+        );
+        outputs.push(output);
+        state_pos += param_len;
+    }
+    // process stage
 
     (InfParOutputSys::new(input.config()), true.into())
 }
