@@ -2104,8 +2104,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut total_stages = read_mem_address_and_proc_id_stages;
     let mut last_pos = 0;
     let mut first = true;
-    // queue: that holds all entries with same temp buffer pos
-    // let mut last_same_pos_idx = 0;
+    // queue: that holds all entries with same temp buffer pos.
     // in this loop: process entry excluding last entries with different position.
     for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
         // movement stage
@@ -2154,8 +2153,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                             _ => (),
                         }
                     }
+                    last_usage = Some(cur_usage);
                 }
-                last_usage = Some(cur_usage);
             }
             last_pos_idx = i;
         }
