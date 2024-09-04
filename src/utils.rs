@@ -2254,6 +2254,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     for entry in &temp_buffer_words_to_write {
         if Some(entry.pos) != write_last_pos {
             // at first write include first move at last read
+            // exclude when memory write with fusion
             if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
                 total_stages += 1;
             }
@@ -2348,14 +2349,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             .filter_map(|e| match e.usage {
                 WordReadUsage::EndPosLimit(b) => {
                     let end_pos = last_pos * dp_len + b;
-                    let (end_pos_states, from_dest) = match e.orig_index {
-                        FromSrc(_) => (&src_end_pos_states, false),
-                        FromDest(_) => (&dest_end_pos_states, true),
+                    let (end_pos_states, start, from_dest) = match e.orig_index {
+                        FromSrc(_) => (&src_end_pos_states, 0, false),
+                        FromDest(_) => (&dest_end_pos_states, src_end_pos_states.len(), true),
                     };
                     // find end_pos in state - p is index in states
                     if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _)| **x) {
                         Some(EndPosStateEntry {
-                            index: Some(p), // first element in tuple is index of bit in states
+                            // first element in tuple is index of bit in states
+                            index: Some(start + p),
                             val: default_state_vars.bit(p) | input.dpval.bit(b),
                             end_pos,
                             from_dest,
@@ -2623,20 +2625,44 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
              end_pos, from_dest, ..
          }| *end_pos == dests[0].1 && *from_dest,
     );
-    let next_stage = if !prev_end_pos_states.is_empty()
+    let (next_stage, if_end_control) = if !prev_end_pos_states.is_empty()
         && !have_dest_end_pos_states
         && dest_end_pos_pos.is_some()
         && !stop_processed
     {
         // check and if end then go to end_stage
-        stop_processed = true;
-        dynint_ite(
+        (
+            dynint_ite(
+                prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
+                UDynVarSys::from_n(end_stage, stage_type_len),
+                UDynVarSys::from_n(outputs.len(), stage_type_len),
+            ),
             prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
-            UDynVarSys::from_n(end_stage, stage_type_len),
-            UDynVarSys::from_n(outputs.len(), stage_type_len),
         )
     } else {
-        UDynVarSys::from_n(outputs.len(), stage_type_len)
+        // and all dest end pos
+        let and_with_dest_end_pos = dest_end_pos_states
+            .iter()
+            .enumerate()
+            .map(|(idx, (x_end_pos, _))| {
+                // if found in prev_end_pos_states
+                if let Ok(p) = prev_end_pos_states
+                    .binary_search_by_key(&Some(src_end_pos_states.len() + idx), |e| e.index)
+                {
+                    prev_end_pos_states[p].val.clone()
+                } else {
+                    default_state_vars.bit(src_end_pos_states.len() + idx)
+                }
+            })
+            .fold(BoolVarSys::from(true), |a, x| (a.clone() & x.clone()));
+        (
+            dynint_ite(
+                and_with_dest_end_pos.clone(),
+                UDynVarSys::from_n(end_stage, stage_type_len),
+                UDynVarSys::from_n(outputs.len(), stage_type_len),
+            ),
+            and_with_dest_end_pos,
+        )
     };
     // prepare inputs for processing function
     let func_inputs = src_params
@@ -2684,8 +2710,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let (next_func_state, out_values) = func.output(func_state.clone(), &func_inputs);
     // update output states
     let mut out_to_update = vec![];
-    let mut can_move_temp_buffer = true;
     let mut if_get_end_pos_data_part = false; // if not
+    let mut write_at_process = false;
     for ((param, _), outval) in dests.into_iter().zip(out_values) {
         if write_pos_allocs
             .binary_search_by_key(param, |aentry| aentry.param)
@@ -2694,15 +2720,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             // write to states
             out_to_update.push((*param, outval.clone()));
         } else {
+            write_at_process = true;
             // write to output
             match param {
                 InfDataParam::MemAddress => {
-                    can_move_temp_buffer = false;
                     output.dkind = DKIND_MEM_ADDRESS.into();
                     output.dpmove = DPMOVE_FORWARD.into();
                     output.dpval = outval.clone();
                 }
                 InfDataParam::TempBuffer(_) => {
+                    output.dkind = DKIND_TEMP_BUFFER.into();
                     output.dpval = outval.clone();
                 }
                 InfDataParam::EndPos(p) => {
@@ -2736,18 +2763,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     new_state = apply_to_state_vars(&write_pos_allocs, &new_state, &out_to_update);
     // output setup
     output.state = create_out_state(next_stage, new_state, next_func_state);
-    if can_move_temp_buffer {
-        output.dkind = DKIND_TEMP_BUFFER.into();
-        if cur_pos != next_phase_position {
-            // make move to next position
-            output.dpmove = if cur_pos < next_phase_position {
-                cur_pos += 1;
-                DPMOVE_FORWARD.into()
-            } else {
-                cur_pos -= 1;
-                DPMOVE_BACKWARD.into()
-            };
-        }
+    assert_eq!(join_with_first_write_stage, write_at_process);
+    if write_at_process {
+        // very important: control dpw:
+        output.dpw = if_end_control;
     }
 
     (InfParOutputSys::new(input.config()), true.into())
