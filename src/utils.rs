@@ -2053,6 +2053,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 .map(|(i, (_, end_pos))| (end_pos, i))
                 .collect::<Vec<_>>();
             end_poses.sort();
+            end_poses.dedup();
             (end_poses, true)
         } else {
             // no dest end pos - because one dest end control all outputs
@@ -2077,6 +2078,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 )
                 .collect::<Vec<_>>();
             end_poses.sort();
+            end_poses.dedup();
             (end_poses, true)
         }
     };
