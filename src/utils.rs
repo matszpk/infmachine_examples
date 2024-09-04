@@ -2050,7 +2050,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             let mut end_poses = dests
                 .into_iter()
                 .enumerate()
-                .map(|(i, (_, end_pos))| (end_pos, i, true))
+                .map(|(i, (_, end_pos))| (end_pos, i))
                 .collect::<Vec<_>>();
             end_poses.sort();
             end_poses.dedup();
@@ -2071,7 +2071,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             let mut end_poses = src_params
                 .into_iter()
                 .enumerate()
-                .map(|(i, (_, end_pos))| (end_pos, i, false))
+                .map(|(i, (_, end_pos))| (end_pos, i))
                 .collect::<Vec<_>>();
             end_poses.sort();
             end_poses.dedup();
@@ -2353,7 +2353,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         FromDest(_) => (&dest_end_pos_states, true),
                     };
                     // find end_pos in state - p is index in states
-                    if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _, _)| **x) {
+                    if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _)| **x) {
                         Some(EndPosStateEntry {
                             index: Some(p), // first element in tuple is index of bit in states
                             val: default_state_vars.bit(p) | input.dpval.bit(b),
@@ -2655,11 +2655,25 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 }
             };
             // get source end pos
+            let src_end_limiter = if let Some(p) = prev_end_pos_states
+                .iter()
+                .find(|e| !e.from_dest && e.end_pos == *end_pos)
+            {
+                // if from last read
+                p.val.clone()
+            } else {
+                // if stored in state vars
+                let p = src_end_pos_states
+                    .binary_search_by_key(end_pos, |(x_end_pos, _)| **x_end_pos)
+                    .unwrap();
+                default_state_vars.bit(p)
+            };
             // filter it
-            //         dynint_ite(
-            //
-            //             , val, UDynVarSys::from_n(0, val.bitnum()));
-            val
+            dynint_ite(
+                !src_end_limiter,
+                val.clone(),
+                UDynVarSys::from_n(0u8, val.bitnum()),
+            )
         })
         .collect::<Vec<_>>();
     // clear before deterime function input to filter
