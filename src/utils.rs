@@ -2324,7 +2324,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             // construct bit vector
             for (pos, len, v) in val_and_pos {
                 bitvec.extend((start..pos).map(|i| ov.bit(i)));
-                bitvec.extend((pos..pos + len).map(|i| ov.bit(i)));
+                bitvec.extend((0..len).map(|i| v.bit(i)));
                 start = pos + len;
             }
             bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
@@ -2335,6 +2335,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
     );
+    // create_out_state: params: s - stage, sv - state_vars, fs - function state
+    let create_out_state = |s, sv, fs| output_state.clone().concat(s).concat(sv).concat(fs);
 
     (InfParOutputSys::new(input.config()), true.into())
 }
