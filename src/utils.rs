@@ -1775,29 +1775,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .any(|(param, _)| *param == InfDataParam::ProcId);
     let mut use_proc_id = false;
     let mut last_pos = 0;
-    let mut first = true;
-    for (_, end_pos) in src_params {
-        let pos = *end_pos / dp_len;
-        if last_pos != pos {
-            total_stages += 1; // movement
-            total_stages += 2; // read stage and store stage
-        } else if first {
-            total_stages += 2; // read stage and store stage
+    for list in [src_params, dests] {
+        let mut first = true;
+        for (_, end_pos) in list {
+            let pos = *end_pos / dp_len;
+            if last_pos != pos {
+                total_stages += 1; // movement
+                total_stages += 2; // read stage and store stage
+            } else if first {
+                total_stages += 2; // read stage and store stage
+            }
+            first = false;
+            last_pos = pos;
         }
-        first = false;
-        last_pos = pos;
-    }
-    let mut first = true;
-    for (_, end_pos) in dests {
-        let pos = *end_pos / dp_len;
-        if last_pos != pos {
-            total_stages += 1; // movement
-            total_stages += 2; // read stage and store stage
-        } else if first {
-            total_stages += 2; // read stage and store stage
-        }
-        first = false;
-        last_pos = pos;
     }
     // src params
     for (param, end_pos) in src_params {
@@ -1881,75 +1871,83 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut last_pos = 0;
     let mut outputs = vec![];
     let mut first = true;
-    // read src_params end pos
-    for (i, (_, end_pos)) in src_params.into_iter().enumerate() {
-        let pos = end_pos / dp_len;
-        let mut do_read = false;
-        if last_pos != pos {
-            // movement stage
-            let (output, _) = move_data_pos_stage(
-                create_out_state(
-                    UDynVarSys::from_n(outputs.len(), stage_type_len),
-                    state_vars.clone(),
-                    func_state.clone(),
-                ),
-                create_out_state(
+    // read src_params and dests end pos
+    for list in [src_params, dests] {
+        for (i, (_, end_pos)) in list.into_iter().enumerate() {
+            let pos = end_pos / dp_len;
+            let mut do_read = false;
+            if last_pos != pos {
+                // movement stage
+                let (output, _) = move_data_pos_stage(
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len(), stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    input,
+                    DKIND_TEMP_BUFFER,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_FORWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
+                outputs.push(output);
+                do_read = true;
+            } else if first {
+                do_read = true;
+            }
+            // read stage
+            if do_read {
+                // read stage
+                let mut output = output_base.clone();
+                output.state = create_out_state(
                     UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
                     state_vars.clone(),
                     func_state.clone(),
-                ),
-                input,
-                DKIND_TEMP_BUFFER,
-                if last_pos < pos {
-                    DPMOVE_FORWARD
-                } else {
-                    DPMOVE_FORWARD
-                },
-                if last_pos < pos {
-                    pos - last_pos
-                } else {
-                    last_pos - pos
-                } as u64,
-            );
-            outputs.push(output);
-            do_read = true;
-        } else if first {
-            do_read = true;
-        }
-        // read stage
-        if do_read {
-            
-            let mut output = output_base.clone();
-            output.state = create_out_state(
-                UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
-                state_vars.clone(),
-                func_state.clone(),
-            );
-            output.dkind = DKIND_TEMP_BUFFER.into();
-            output.dpr = true.into();
-            outputs.push(output);
-            // store stage
-            // let mut output = output_base.clone();
-            let mut new_state_vars = state_vars.clone();
-            for (j, (_, end_pos)) in src_params[i..].into_iter().take_while(|(_, end_pos)| {
-                let pos_2 = end_pos / dp_len;
-                pos == pos_2
-            }).enumerate() {
-                let end_pos_val = state_vars.bit(i) | input.dpval.bit(end_pos % dp_len);
-                //new_state_vars = 
+                );
+                output.dkind = DKIND_TEMP_BUFFER.into();
+                output.dpr = true.into();
+                outputs.push(output);
+                // store stage
+                let mut output = output_base.clone();
+                let end_poses = UDynVarSys::from_iter(
+                    list[i..]
+                        .into_iter()
+                        .take_while(|(_, end_pos)| {
+                            // while end_pos is same data part
+                            let pos_2 = end_pos / dp_len;
+                            pos == pos_2
+                        })
+                        .map(|(_, end_pos)| input.dpval.bit(end_pos % dp_len)),
+                );
+                let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
+                    if x < i || x >= i + end_poses.len() {
+                        state_vars.bit(i)
+                    } else {
+                        end_poses.bit(x - i).clone()
+                    }
+                }));
+                output.state = create_out_state(
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                    new_state_vars,
+                    func_state.clone(),
+                );
             }
-//             output.state = create_out_state(
-//                     UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
-//                     UDynVarSys::from_iter(
-//                         (0..state_vars.len()).map(|bit|
-//     
-//                     )
-//                     state_vars.clone(),
-//                     func_state.clone(),
-//                 );
+            last_pos = pos;
         }
-        last_pos = pos;
     }
+    // read params
 
     (InfParOutputSys::new(input.config()), true.into())
 }
