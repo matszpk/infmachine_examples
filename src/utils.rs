@@ -1869,9 +1869,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let create_out_state = |s, sv, fs| output_state.clone().concat(s).concat(sv).concat(fs);
     let mut last_pos = 0;
     let mut outputs = vec![];
-    let mut first = true;
     // read src_params and dests end pos
     for list in [src_params, dests] {
+        let mut first = true;
         for (i, (_, end_pos)) in list.into_iter().enumerate() {
             let pos = end_pos / dp_len;
             let mut do_read = false;
@@ -1945,6 +1945,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 outputs.push(output);
             }
             last_pos = pos;
+            first = false;
         }
     }
     // read params
@@ -2011,6 +2012,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         .into();
         output.dpr = true.into();
+        output.dpmove = if !use_write_mem_address && *param == InfDataParam::MemAddress {
+            DPMOVE_FORWARD
+        } else {
+            DPMOVE_NOTHING
+        }.into();
         outputs.push(output);
         // store stage
         let param_len = if let InfDataParam::EndPos(_) = param {
@@ -2035,6 +2041,49 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         state_pos += param_len;
     }
     // process stage
+    let (func_inputs, state_output_pos) = {
+        let mut func_inputs = vec![];
+        let mut state_pos = src_params.len() + dests.len();
+        for (i, (param, _)) in src_params.iter().enumerate() {
+            let param_len = if let InfDataParam::EndPos(_) = param {
+                dp_len
+            } else {
+                1
+            };
+            func_inputs.push(dynint_ite(
+                !state_vars.bit(i),
+                UDynVarSys::from_iter((0..param_len).map(|x| state_vars.bit(state_pos + x))),
+                UDynVarSys::from_n(0u8, param_len),
+            ));
+            state_pos += param_len;
+        }
+        (func_inputs, state_pos)
+    };
+    let (next_func_state, outvals) = func.output(func_state.clone(), &func_inputs);
+    let mut output = output_base.clone();
+    // get function output bitvector
+    let func_outputs = {
+        let mut func_output_bits = vec![];
+        for ((param, dest), outval) in dests.into_iter().zip(outvals.into_iter()) {
+            let param_len = if let InfDataParam::EndPos(_) = param {
+                dp_len
+            } else {
+                1
+            };
+            func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
+        }
+        UDynVarSys::from_iter(func_output_bits)
+    };
+    // TODO: fix for end loop
+    output.state = create_out_state(
+        UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+        state_vars
+            .clone()
+            .subvalue(0, state_output_pos)
+            .concat(func_outputs),
+        next_func_state,
+    );
+    outputs.push(output);
 
     (InfParOutputSys::new(input.config()), true.into())
 }
