@@ -2101,7 +2101,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // if in first write and if no other stage between last read and first write -
     // then get from input.dpval not from state.
     let mut last_pos_idx = 0;
-    let mut total_stages = 0;
+    let mut total_stages = read_mem_address_and_proc_id_stages;
     let mut last_pos = 0;
     let mut first = true;
     // queue: that holds all entries with same temp buffer pos
@@ -2309,7 +2309,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .subvalue(state_start + stage_type_len, state_bit_num);
     let apply_to_state_vars =
         |allocs: &[AllocEntry], ov: UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
-            let mut ov = ov.clone();
             // get value, pos and lengths tuple
             let mut val_and_pos = vs
                 .into_iter()
