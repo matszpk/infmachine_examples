@@ -2060,22 +2060,18 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             (vec![], false)
         }
     };
-    let (end_pos_states, have_src_pos_states) = {
+    let (src_end_pos_states, have_src_pos_states) = {
         if src_params.is_empty() ||
             // or if all src_params have same end_pos as dest endpos
             (dest_end_pos_states.is_empty() &&
                 src_params.into_iter().all(|(_, end_pos)| dests[0].1 == *end_pos))
         {
-            (dest_end_pos_states, false)
+            (vec![], false)
         } else {
-            let mut end_poses = dest_end_pos_states
+            let mut end_poses = src_params
                 .into_iter()
-                .chain(
-                    src_params
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, (_, end_pos))| (end_pos, i, false)),
-                )
+                .enumerate()
+                .map(|(i, (_, end_pos))| (end_pos, i, false))
                 .collect::<Vec<_>>();
             end_poses.sort();
             end_poses.dedup();
@@ -2288,13 +2284,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // fix allocs
     for AllocEntry { pos: t, .. } in &mut read_pos_allocs {
-        *t += end_pos_states.len();
+        *t += src_end_pos_states.len() + dest_end_pos_states.len();
     }
     for AllocEntry { pos: t, .. } in &mut write_pos_allocs {
-        *t += end_pos_states.len();
+        *t += src_end_pos_states.len() + dest_end_pos_states.len();
     }
-    let state_bit_num =
-        end_pos_states.len() + std::cmp::max(read_state_bit_count, write_state_bit_count);
+    let state_bit_num = src_end_pos_states.len()
+        + dest_end_pos_states.len()
+        + std::cmp::max(read_state_bit_count, write_state_bit_count);
     // sort allocs
     read_pos_allocs.sort_by_key(|x| x.param);
     write_pos_allocs.sort_by_key(|x| x.param);
@@ -2303,6 +2300,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // MAIN PROCESS:
     // circuit generation: stages generation.
     //
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct EndPosStateEntry {
+        index: Option<usize>,
+        end_pos: usize,
+        from_dest: bool,
+        val: BoolVarSys,
+    };
     let state_start = output_state.bitnum();
     let stage_type_len = calc_log_bits(total_stages);
     extend_output_state(
@@ -2344,22 +2348,32 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             .filter_map(|e| match e.usage {
                 WordReadUsage::EndPosLimit(b) => {
                     let end_pos = last_pos * dp_len + b;
+                    let (end_pos_states, from_dest) = match e.orig_index {
+                        FromSrc(_) => (&src_end_pos_states, false),
+                        FromDest(_) => (&dest_end_pos_states, true),
+                    };
                     // find end_pos in state - p is index in states
                     if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _, _)| **x) {
-                        Some((
-                            Some(p), // first element in tuple is index of bit in states
-                            default_state_vars.bit(p) | input.dpval.bit(b),
+                        Some(EndPosStateEntry {
+                            index: Some(p), // first element in tuple is index of bit in states
+                            val: default_state_vars.bit(p) | input.dpval.bit(b),
                             end_pos,
-                        ))
+                            from_dest,
+                        })
                     } else {
                         // if special case - no end pos state. index in states is undefined
-                        Some((None, input.dpval.bit(b), end_pos))
+                        Some(EndPosStateEntry {
+                            index: None,
+                            val: input.dpval.bit(b),
+                            end_pos,
+                            from_dest,
+                        })
                     }
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        end_poses.sort_by_key(|(x, _, _)| *x);
+        end_poses.sort_by_key(|x| x.index);
         end_poses
     };
     let get_updates_for_reads = |prev_reads: &[InfDataParam], input: &InfParInputSys| {
@@ -2380,23 +2394,25 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             })
             .collect::<Vec<_>>()
     };
-    let update_end_pos_states =
-        |ov: &UDynVarSys, new_vals: &[(Option<usize>, BoolVarSys, usize)]| {
-            let mut start = 0;
-            let mut bitvec = vec![];
-            // construct bit vector
-            for (pos, v, _) in new_vals {
-                if let Some(pos) = pos {
-                    // pos - index in bit in states
-                    bitvec.extend((start..*pos).map(|i| ov.bit(i)));
-                    bitvec.push(v.clone());
-                    start = *pos + 1;
-                }
+    let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[EndPosStateEntry]| {
+        let mut start = 0;
+        let mut bitvec = vec![];
+        // construct bit vector
+        for EndPosStateEntry {
+            index: pos, val: v, ..
+        } in new_vals
+        {
+            if let Some(pos) = pos {
+                // pos - index in bit in states
+                bitvec.extend((start..*pos).map(|i| ov.bit(i)));
+                bitvec.push(v.clone());
+                start = *pos + 1;
             }
-            bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
-            // to dynintvar
-            UDynVarSys::from_iter(bitvec)
-        };
+        }
+        bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
+        // to dynintvar
+        UDynVarSys::from_iter(bitvec)
+    };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
@@ -2545,9 +2561,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 // update new end pos states
                 new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
                 // special case of end pos - only one unique end pos:
-                let dest_end_pos_pos = prev_end_pos_states
-                    .iter()
-                    .position(|(_, _, end_pos)| *end_pos == dests[0].1);
+                let dest_end_pos_pos = prev_end_pos_states.iter().position(
+                    |EndPosStateEntry {
+                         end_pos, from_dest, ..
+                     }| *end_pos == dests[0].1 && *from_dest,
+                );
                 let next_stage = if !prev_end_pos_states.is_empty()
                     && !have_dest_end_pos_states
                     && dest_end_pos_pos.is_some()
@@ -2556,7 +2574,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     // check and if end then go to end_stage
                     stop_processed = true;
                     dynint_ite(
-                        prev_end_pos_states[dest_end_pos_pos.unwrap()].1.clone(),
+                        prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
                         UDynVarSys::from_n(end_stage, stage_type_len),
                         UDynVarSys::from_n(outputs.len(), stage_type_len),
                     )
@@ -2598,9 +2616,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // update new end pos states
     let new_state = update_end_pos_states(&default_state_vars, &prev_end_pos_states);
     // special case of end pos - only one unique end pos:
-    let dest_end_pos_pos = prev_end_pos_states
-        .iter()
-        .position(|(_, _, end_pos)| *end_pos == dests[0].1);
+    let dest_end_pos_pos = prev_end_pos_states.iter().position(
+        |EndPosStateEntry {
+             end_pos, from_dest, ..
+         }| *end_pos == dests[0].1 && *from_dest,
+    );
     let next_stage = if !prev_end_pos_states.is_empty()
         && !have_dest_end_pos_states
         && dest_end_pos_pos.is_some()
@@ -2609,7 +2629,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         // check and if end then go to end_stage
         stop_processed = true;
         dynint_ite(
-            prev_end_pos_states[dest_end_pos_pos.unwrap()].1.clone(),
+            prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
             UDynVarSys::from_n(end_stage, stage_type_len),
             UDynVarSys::from_n(outputs.len(), stage_type_len),
         )
@@ -2634,7 +2654,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     InfDataParam::EndPos(b) => UDynVarSys::filled(1, input.dpval.bit(b % dp_len)),
                 }
             };
-            // get
+            // get source end pos
             // filter it
             //         dynint_ite(
             //
