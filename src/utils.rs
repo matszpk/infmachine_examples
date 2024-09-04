@@ -1698,14 +1698,6 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     )
 }
 
-// HINT: while moving to next position use that construction:
-// state1.dpmove = dir; state2 = move_data_pos_stage(dir, pos_diff - 1),
-// pos_diff - difference between two positions in temp buffer part.
-// TODO: use it to any other simpler function that operates in infinite data.
-// src_params and dests entry format:
-// (param, end_pos):
-// param_type - defined parameter position in infinite data.
-// end_pos - used end position marker to limit data (limiter)
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -1762,1011 +1754,201 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         // check whether dests have only one per different InfDataParam.
         assert_eq!(old_dest_len, dests.len());
     }
-    // find unique words used to read
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    enum WordReadUsage {
-        // end pos to limit other input. parameter is bit in word.
-        EndPosLimit(usize),
-        // end pos as input. parameter is bit in word.
-        EndPosInput(usize),
-        // read input from temp buffer
-        TempBuffer,
-    }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    enum ReadOrigIndex {
-        FromSrc(usize),
-        FromDest(usize),
-    }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    struct WordReadEntry {
-        pos: usize,
-        usage: WordReadUsage,
-        orig_index: ReadOrigIndex,
-    }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    enum WordWriteUsage {
-        // end pos as output. parameter is bit in word.
-        EndPosOutput(usize),
-        // write output from temp buffer
-        TempBuffer,
-    }
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    struct WordWriteEntry {
-        pos: usize,
-        usage: WordWriteUsage,
-        orig_index: usize,
-    }
-    // collect words to read from temp buffer chunk
-    use ReadOrigIndex::*;
-    let temp_buffer_words_to_read = {
-        let mut temp_buffer_words_to_read = vec![];
-        for (i, (data_param, end_pos_limit)) in src_params.into_iter().enumerate() {
-            // push from end pos limiter
-            temp_buffer_words_to_read.push(WordReadEntry {
-                pos: end_pos_limit / dp_len,
-                usage: WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
-                orig_index: FromSrc(i),
-            });
-            // push from data param
-            match data_param {
-                InfDataParam::EndPos(pos) => {
-                    temp_buffer_words_to_read.push(WordReadEntry {
-                        pos: pos / dp_len,
-                        usage: WordReadUsage::EndPosInput(*pos % dp_len),
-                        orig_index: FromSrc(i),
-                    });
-                }
-                InfDataParam::TempBuffer(pos) => {
-                    temp_buffer_words_to_read.push(WordReadEntry {
-                        pos: *pos,
-                        usage: WordReadUsage::TempBuffer,
-                        orig_index: FromSrc(i),
-                    });
-                }
-                _ => (),
-            }
-        }
-        // push end pos limiter from destinations
-        for (i, (_, end_pos_limit)) in dests.into_iter().enumerate() {
-            // push from end pos limiter
-            temp_buffer_words_to_read.push(WordReadEntry {
-                pos: end_pos_limit / dp_len,
-                usage: WordReadUsage::EndPosLimit(end_pos_limit % dp_len),
-                orig_index: FromDest(i),
-            });
-        }
-        temp_buffer_words_to_read.sort();
-        temp_buffer_words_to_read.dedup();
-        temp_buffer_words_to_read
-    };
-    // collect words to write from temp buffer chunk
-    let temp_buffer_words_to_write = {
-        let mut temp_buffer_words_to_write = vec![];
-        for (i, (data_param, _)) in dests.into_iter().enumerate() {
-            // push from data param
-            match data_param {
-                InfDataParam::EndPos(pos) => {
-                    temp_buffer_words_to_write.push(WordWriteEntry {
-                        pos: pos / dp_len,
-                        usage: WordWriteUsage::EndPosOutput(*pos % dp_len),
-                        orig_index: i,
-                    });
-                }
-                InfDataParam::TempBuffer(pos) => {
-                    temp_buffer_words_to_write.push(WordWriteEntry {
-                        pos: *pos,
-                        usage: WordWriteUsage::TempBuffer,
-                        orig_index: i,
-                    });
-                }
-                _ => (),
-            }
-        }
-        temp_buffer_words_to_write.sort();
-        temp_buffer_words_to_write
-    };
-    // check full filling for temp buffer pos that holds end pos to write
-    // if temp buffer data part in dest with end positions is fully filled then
-    // write can be done in one stage without reading data part to keep other end pos markers.
-    let filled_tb_pos = {
-        let mut filled_tb_pos = vec![false; temp_buffer_step as usize];
-        let mut last_pos = temp_buffer_words_to_write[0].pos;
-        let mut last_pos_idx = 0;
-        for (i, entry) in temp_buffer_words_to_write.iter().enumerate() {
-            if last_pos != entry.pos {
-                if matches!(
-                    temp_buffer_words_to_write[last_pos_idx].usage,
-                    WordWriteUsage::EndPosOutput(_)
-                ) {
-                    let mut fill = vec![false; dp_len];
-                    // check if all filled
-                    for entry in &temp_buffer_words_to_write[last_pos_idx..i] {
-                        if let WordWriteUsage::EndPosOutput(b) = entry.usage {
-                            fill[b] = true;
-                        }
-                    }
-                    // set if all bits are filled
-                    filled_tb_pos[last_pos] = fill.into_iter().all(|x| x);
-                }
-                // new usage
-                last_pos_idx = i;
-            }
-            last_pos = entry.pos;
-        }
-        // last
-        if matches!(
-            temp_buffer_words_to_write[last_pos_idx].usage,
-            WordWriteUsage::EndPosOutput(_)
-        ) {
-            let mut fill = vec![false; dp_len];
-            // check if all filled
-            for entry in &temp_buffer_words_to_write[last_pos_idx..] {
-                if let WordWriteUsage::EndPosOutput(b) = entry.usage {
-                    fill[b] = true;
-                }
-            }
-            // set if all bits are filled
-            filled_tb_pos[last_pos] = fill.into_iter().all(|x| x);
-        }
-        filled_tb_pos
-    };
+    assert!(dests
+        .into_iter()
+        .all(|(param, _)| *param != InfDataParam::ProcId));
 
-    // All plan divided into 4 phases: a reading phase, a processing phase (one stage),
-    // a writing stage, a moving back phase (move back data positions to start).
-    // Allocation of states in order:
-    // * all end pos in dests to limit writes,
-    // * rest of data to read (a reading phase) or data to write (in a writing phase)
-    // [DEST_END_POS,{ALL_READ_DATA|WRITE_DATA}]
-
-    #[derive(Clone, Copy, Debug)]
-    struct AllocEntry {
-        param: InfDataParam,
-        pos: usize,
-        len: usize,
-    }
-    let mut read_state_bit_count = 0; // segment for rest read data.
-    let mut read_pos_allocs = Vec::<AllocEntry>::new();
-    let mut write_state_bit_count = 0; // this same segment as for read data.
-    let mut write_pos_allocs = Vec::<AllocEntry>::new();
-
-    // prepare plan for stages and extra states
-    let use_read_mem_address_count = src_params
-        .iter()
-        .filter(|(dp, _)| matches!(dp, InfDataParam::MemAddress))
-        .count();
-    let use_write_mem_address = dests
-        .iter()
-        .any(|(dp, _)| matches!(dp, InfDataParam::MemAddress));
-    let use_proc_id_count = src_params
-        .iter()
-        .filter(|(dp, _)| matches!(dp, InfDataParam::ProcId))
-        .count();
-    let read_mem_address_and_proc_id_stages =
-        usize::from(use_read_mem_address_count != 0 && use_write_mem_address)
-            + usize::from(use_proc_id_count != 0);
-
-    // main plan of processing:
-    // read mem_address data part and move postion (if not write to it)
-    // read proc_id data part and move position
-    // read temp buffer data parts and move positions
-    // x. check if all dest end pos are set then go to end of algorithm.
-    // y. filter all inputs and process all inputs.
-    // x and y steps: can be done in one stage.
-    // in this point it possible to fuse read/processing/write stages together
-    // write mem_address data part and move position.
-    // move to first temp buffer data to write
-    // write temp buffer data parts and move position
-    // move to start of next temp buffer data parts.
-    // end of algorithm: move back to start.
-    // main plain doesn't require to use variable allocator.
-
-    // read stage scheme:
-    // movement stage - stage to move this position if needed
-    // read stage and movement - read temp buffer data
-    //   and first movement - use read data and make first move if needed
-    //   important: dpr - must be set by src end pos
-    // calculation or store stage - can be fused with read stage.
-    // scheme if one one move to next position:
-    // [read, move]
-    // [store, read, [move]] <- next read, next position
-    // scheme if one two moves to next position:
-    // [read, move]
-    // [store, move]
-    // [read,[move]].... <- next read, next position
-    // scheme if one more than two moves to next position:
-    // [read, move]
-    // [store, move]
-    // [movement stage]
-    // [read, [move]] <- next read, next position
-
-    // write stage scheme if filled endposes or other kind:
-    //   if one step to next position:
-    //   [write, move]
-    //   [write, move] <- next position
-    //   if more than one step to next position:
-    //   [write, move]
-    //   [movement]
-    //   [write, move] <- next position:
-    // write not fully filled endposes:
-    //   if one step to next position:
-    //   [read]
-    //   [write, move] <- next position
-    //   if more than one step to next position:
-    //   [read]
-    //   [write, move]
-    //   [movement]
-
-    // join mem_address or proc_id read with temp_buffer
-    // No extra stage needed. first movement of temp buffer before reads from
-    // mem_address and proc_id
-
-    // join read and process:
-    // excluded case: no temp buffer read - must be one temp buffer read.
-    // first write and last read is same temp buffer position: and NO read required at write:
-    // [last_read]
-    // [[store],process,write,move_to_next]
-    // between first write and last read only one move: and NO read required at write:
-    // [last_read,move]
-    // [[store],process,write,move_to_next]
-    // between first write and last read more than one move: and NO read required at write:
-    // [last_read,move]
-    // [[store],process,movement] - need store first writes
-    // [process,write,move_to_next]
-    //
-    // first write and last read is same temp buffer position: and read required at write:
-    // [last_read] <- fuse read
-    // [[store],process,write,move_to_next]
-    // between first write and last read only one move: and read required at write:
-    // [last_read,move]
-    // [[store],process,read] - need store first writes
-    // [write,move_to_next]
-    // between first write and last read more than one move: and read required at write:
-    // [last_read,move]
-    // [[store],process,movement] - need store first writes
-    // [read]
-    // [write,move_to_next]
-    //
-    // mem_address write and last read same position as first write to temp buffer
-    // and NO read required at write:
-    // [last_read]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
-    // mem_address write and between last read and first write temp temp buffer is 1 move
-    // and NO read required at write:
-    // [last_read,move]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
-    // mem_address write and between last read and first write temp temp buffer is
-    // more than one move and NO read required at write:
-    // [last_read,move]
-    // [[store],process,[mem_address_write],move_to_next_mem_address]
-    // [movement] <- next temp buffer position
-
-    // end_pos states - states managed in whole loop
-    let (dest_end_pos_states, have_dest_end_pos_states) = {
-        let first_dest_end_pos = dests[0].1;
-        if dests
-            .into_iter()
-            .any(|(_, end_pos)| *end_pos != first_dest_end_pos)
-        {
-            let mut end_poses = dests
-                .into_iter()
-                .enumerate()
-                .map(|(i, (_, end_pos))| (end_pos, i))
-                .collect::<Vec<_>>();
-            end_poses.sort();
-            end_poses.dedup();
-            (end_poses, true)
-        } else {
-            // no dest end pos - because one dest end control all outputs
-            (vec![], false)
-        }
-    };
-    let (src_end_pos_states, have_src_pos_states) = {
-        if src_params.is_empty() ||
-            // or if all src_params have same end_pos as dest endpos
-            (dest_end_pos_states.is_empty() &&
-                src_params.into_iter().all(|(_, end_pos)| dests[0].1 == *end_pos))
-        {
-            (vec![], false)
-        } else {
-            let mut end_poses = src_params
-                .into_iter()
-                .enumerate()
-                .map(|(i, (_, end_pos))| (end_pos, i))
-                .collect::<Vec<_>>();
-            end_poses.sort();
-            end_poses.dedup();
-            (end_poses, true)
-        }
-    };
-
-    // process reading of mem_address and proc_id.
-    if use_read_mem_address_count != 0 {
-        if use_proc_id_count != 0 || !temp_buffer_words_to_read.is_empty() {
-            // allocate read value
-            read_pos_allocs.push(AllocEntry {
-                param: InfDataParam::MemAddress,
-                pos: read_state_bit_count,
-                len: dp_len,
-            });
-            read_state_bit_count += dp_len;
-        }
-    }
-    if use_proc_id_count != 0 {
-        if !temp_buffer_words_to_read.is_empty() {
-            // allocate read value
-            read_pos_allocs.push(AllocEntry {
-                param: InfDataParam::ProcId,
-                pos: read_state_bit_count,
-                len: dp_len,
-            });
-            read_state_bit_count += dp_len;
-        }
-    }
-
-    // last_pos - last read position in temp buffer
-    // if in first write and if no other stage between last read and first write -
-    // then get from input.dpval not from state.
-    let mut last_pos_idx = 0;
-    let mut total_stages = read_mem_address_and_proc_id_stages;
+    let mut total_stages = 0;
+    // store all end pos limiters
+    let total_state_bits = src_params.len() + dests.len();
+    let mut read_state_bits = 0;
+    // end_pos
+    let mut use_mem_address = src_params
+        .into_iter()
+        .chain(dests.into_iter())
+        .any(|(param, _)| *param == InfDataParam::MemAddress);
+    let mut use_write_mem_address = dests
+        .into_iter()
+        .any(|(param, _)| *param == InfDataParam::MemAddress);
+    let mut use_proc_id = src_params
+        .into_iter()
+        .any(|(param, _)| *param == InfDataParam::ProcId);
+    let mut use_proc_id = false;
     let mut last_pos = 0;
     let mut first = true;
-    // queue: that holds all entries with same temp buffer pos.
-    // in this loop: process entry excluding last entries with different position.
-    for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
-        // allocate state bits
-        if last_pos != entry.pos {
-            // movement stage
-            if (first && entry.pos != last_pos)
-                || (!first &&
-                    // or if requred movement to 2 next positiona requires more than one move
-                    (entry.pos + 2 < last_pos
-                    || entry.pos > last_pos + 2))
-            {
-                total_stages += 1;
-            } else if !first && (entry.pos + 1 >= last_pos && entry.pos <= last_pos + 1) {
-                total_stages -= 1; // store stage fusion with read stage
-            }
-            let mut last_usage = None;
-            // in this loop: process all entries
-            for entry in &temp_buffer_words_to_read[last_pos_idx..i] {
-                // Important notice about ordering:
-                // Next majority after usage is enum's variant (FromDest and FromSrc)
-                // thus, ordering of temp_buffer_words_to_read is correct.
-                // (FromDest, FromSrc).
-                let cur_usage = (entry.usage, matches!(entry.orig_index, FromDest(_)));
-                if Some(cur_usage) != last_usage {
-                    // process first entry with different usage or source of original index.
-                    if let FromSrc(p) = entry.orig_index {
-                        match entry.usage {
-                            WordReadUsage::EndPosInput(b) => {
-                                // the allocate in read segment
-                                read_pos_allocs.push(AllocEntry {
-                                    param: InfDataParam::EndPos(dp_len * p + b),
-                                    pos: read_state_bit_count,
-                                    len: 1,
-                                });
-                                read_state_bit_count += 1;
-                            }
-                            WordReadUsage::TempBuffer => {
-                                read_pos_allocs.push(AllocEntry {
-                                    param: InfDataParam::TempBuffer(p),
-                                    pos: read_state_bit_count,
-                                    len: dp_len,
-                                });
-                                read_state_bit_count += dp_len;
-                            }
-                            _ => (),
-                        }
-                    }
-                    last_usage = Some(cur_usage);
-                }
-            }
-            // reading
-            if first || entry.pos != last_pos {
-                total_stages += 2; // include read stage and store stage.
-            }
-            last_pos_idx = i;
+    for (_, end_pos) in src_params {
+        let pos = *end_pos / dp_len;
+        if last_pos != pos {
+            total_stages += 1; // movement
+            total_stages += 2; // read stage and store stage
+        } else if first {
+            total_stages += 2; // read stage and store stage
         }
-        // rest of iteration
-        last_pos = entry.pos;
         first = false;
+        last_pos = pos;
     }
-    // determine next temp buffer position
-    let next_phase_position = if !temp_buffer_words_to_write.is_empty() {
-        temp_buffer_words_to_write[0].pos
-    } else {
-        temp_buffer_step as usize
-    };
-    let fuse_read_with_write_temp_buffer_end_pos_read = {
-        if let Some(write) = temp_buffer_words_to_write.get(0) {
-            last_pos == write.pos && matches!(write.usage, WordWriteUsage::EndPosOutput(_))
-        } else {
-            false
-        }
-    };
-    // determine join with process stage and first write stage
-    let join_with_first_write_stage = use_write_mem_address
-        // if only one move needed to first write position
-        || ((next_phase_position + 1 >= last_pos
-            && next_phase_position <= last_pos + 1) && (
-            if let Some(write) = temp_buffer_words_to_write.get(0) {
-                // if whole temp buffer data part
-                (matches!(write.usage, WordWriteUsage::TempBuffer)
-                    // or filled by all end pos outputs or fused with read between
-                    // last_read and first_write.
-                    || (fuse_read_with_write_temp_buffer_end_pos_read || filled_tb_pos[write.pos]))
-            } else {
-                false
-            }));
-    //
-    total_stages += 2; // include read stage and process stage.
-
-    // allocate writes excluding first write
-    if !temp_buffer_words_to_write.is_empty() {
-        let write_first_pos = temp_buffer_words_to_write[0].pos;
-        // skip_while - entry.pos == skip if write_first_pos - skip first write.
-        // skip if possible join first write stage with process stage - then skip
-        //     first writes can be ommited while storing in states (it read directly).
-        // otherwise all writes should be stored in states because all will be in next stages.
-        // use: join_with_first_write_stage && e.pos == write_first_pos to do it.
-        for entry in temp_buffer_words_to_write
-            .iter()
-            .skip_while(|e| join_with_first_write_stage && e.pos == write_first_pos)
-        {
-            // entries in temp_buffer_words_to_write are unique (unique position with usage).
-            // just process single writes
-            match entry.usage {
-                WordWriteUsage::EndPosOutput(b) => {
-                    write_pos_allocs.push(AllocEntry {
-                        param: InfDataParam::EndPos(entry.pos * dp_len + b),
-                        pos: write_state_bit_count,
-                        len: 1,
-                    });
-                    write_state_bit_count += 1;
-                }
-                WordWriteUsage::TempBuffer => {
-                    write_pos_allocs.push(AllocEntry {
-                        param: InfDataParam::TempBuffer(entry.pos),
-                        pos: write_state_bit_count,
-                        len: dp_len,
-                    });
-                    write_state_bit_count += dp_len;
-                }
-            }
-        }
-    }
-
-    // now first memory address write. If done then should be fused with
-    // store and process stage and include total_stages.
-
-    // join last process and first write to one stage if:
-    // * first write to memory_address
-    // * first write to temp buffer is to position at most 1 move forward or backward
-    //   * write is filled end pos temp buffer position or temp_buffer write
-    if join_with_first_write_stage {
-        total_stages -= 1; // join write with process stage
-    }
-
-    // prepare stages for write words
     let mut first = true;
-    let mut write_last_pos = None;
-    // in this loop: all entries
-    for entry in &temp_buffer_words_to_write {
-        if Some(entry.pos) != write_last_pos {
-            // at first write include first move at last read
-            // exclude when memory write with fusion
-            if entry.pos + 1 < last_pos || entry.pos > last_pos + 1 {
-                total_stages += 1;
-            }
-            if !filled_tb_pos[entry.pos] {
-                if !first && !fuse_read_with_write_temp_buffer_end_pos_read {
-                    // exclude special case when last read position == first write position
-                    // and no memory write - then fuse read with last read from read phase.
-                    total_stages += 1; // add if not filled, and read stage needed
-                }
-            }
-            total_stages += 1;
-            last_pos = entry.pos;
-            write_last_pos = Some(entry.pos);
-            first = false;
+    for (_, end_pos) in dests {
+        let pos = *end_pos / dp_len;
+        if last_pos != pos {
+            total_stages += 1; // movement
+            total_stages += 2; // read stage and store stage
+        } else if first {
+            total_stages += 2; // read stage and store stage
         }
+        first = false;
+        last_pos = pos;
     }
-    // Now. Add to total_stages stage to move to next data chunk at start.
-    // (temp_buffer_step - last_pos)
-    // at first write include first move at last read
-    if (temp_buffer_step as usize) + 1 >= last_pos && (temp_buffer_step as usize) <= last_pos + 1 {
-        total_stages += 1;
+    // src params
+    for (param, end_pos) in src_params {
+        match param {
+            InfDataParam::EndPos(p) => {
+                let pos = *end_pos / dp_len;
+                if last_pos != pos {
+                    total_stages += 1; // movement stage
+                }
+                last_pos = pos;
+                read_state_bits += 1;
+            }
+            InfDataParam::TempBuffer(pos) => {
+                if last_pos != *pos {
+                    total_stages += 1; // movement stage
+                }
+                last_pos = *pos;
+                read_state_bits += dp_len;
+            }
+            _ => {
+                read_state_bits += dp_len;
+            }
+        }
+        total_stages += 2; // read stage and store stage
     }
+    total_stages += 1; // process stage and store results
+    let mut write_state_bits = 0;
+    for (param, end_pos) in dests {
+        match param {
+            InfDataParam::EndPos(p) => {
+                total_stages += 1; // read stage for keep values
+                let pos = *end_pos / dp_len;
+                if last_pos != pos {
+                    total_stages += 1; // movement stage
+                }
+                last_pos = pos;
+                write_state_bits += 1;
+            }
+            InfDataParam::TempBuffer(pos) => {
+                if last_pos != *pos {
+                    total_stages += 1; // movement stage
+                }
+                last_pos = *pos;
+                write_state_bits += dp_len;
+            }
+            _ => {
+                write_state_bits += dp_len;
+            }
+        }
+        total_stages += 1; // write stage
+    }
+    // move to next data part
+    total_stages += 1;
+    // add move back stages
     let end_stage = total_stages;
+    total_stages += 1 + usize::from(use_mem_address) + usize::from(use_proc_id);
+    // calculate total state bits
+    let total_state_bits = total_state_bits + std::cmp::max(read_state_bits, write_state_bits);
 
-    // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
-    total_stages += 1 + read_mem_address_and_proc_id_stages;
-    let total_stages = total_stages; // as not mutable (read-only)
-
-    // fix allocs
-    for AllocEntry { pos: t, .. } in &mut read_pos_allocs {
-        *t += src_end_pos_states.len() + dest_end_pos_states.len();
-    }
-    for AllocEntry { pos: t, .. } in &mut write_pos_allocs {
-        *t += src_end_pos_states.len() + dest_end_pos_states.len();
-    }
-    let state_bit_num = src_end_pos_states.len()
-        + dest_end_pos_states.len()
-        + std::cmp::max(read_state_bit_count, write_state_bit_count);
-    // sort allocs
-    read_pos_allocs.sort_by_key(|x| x.param);
-    write_pos_allocs.sort_by_key(|x| x.param);
-
-    //
-    // MAIN PROCESS:
-    // circuit generation: stages generation.
-    //
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    struct EndPosStateEntry {
-        index: Option<usize>,
-        end_pos: usize,
-        from_dest: bool,
-        val: BoolVarSys,
-    };
+    // main routine to generate stages
     let state_start = output_state.bitnum();
     let stage_type_len = calc_log_bits(total_stages);
     extend_output_state(
         state_start,
-        stage_type_len + state_bit_num + func.state_len(),
+        stage_type_len + total_state_bits + func.state_len(),
         input,
     );
-    let default_state_vars = input
+    let stage = input.state.clone().subvalue(state_start, stage_type_len);
+    let state_vars = input
         .state
         .clone()
-        .subvalue(state_start + stage_type_len, state_bit_num);
-    let apply_to_state_vars =
-        |allocs: &[AllocEntry], ov: &UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
-            // get value, pos and lengths tuple
-            let mut val_and_pos = vs
-                .into_iter()
-                .map(|(param, v)| {
-                    let p = allocs.binary_search_by_key(param, |x| x.param).unwrap();
-                    (read_pos_allocs[p].pos, read_pos_allocs[p].len, v.clone())
-                })
-                .collect::<Vec<_>>();
-            // sort by position
-            val_and_pos.sort_by_key(|(p, _, _)| *p);
-            let mut start = 0;
-            let mut bitvec = vec![];
-            // construct bit vector
-            for (pos, len, v) in val_and_pos {
-                bitvec.extend((start..pos).map(|i| ov.bit(i)));
-                bitvec.extend((0..len).map(|i| v.bit(i)));
-                start = pos + len;
-            }
-            bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
-            // to dynintvar
-            UDynVarSys::from_iter(bitvec)
-        };
-    let new_end_pos_states = |last_pos_idx, i, input: &InfParInputSys| {
-        let mut end_poses = temp_buffer_words_to_read[last_pos_idx..i]
-            .iter()
-            .filter_map(|e| match e.usage {
-                WordReadUsage::EndPosLimit(b) => {
-                    let end_pos = last_pos * dp_len + b;
-                    let (end_pos_states, start, from_dest) = match e.orig_index {
-                        FromSrc(_) => (&src_end_pos_states, 0, false),
-                        FromDest(_) => (&dest_end_pos_states, src_end_pos_states.len(), true),
-                    };
-                    // find end_pos in state - p is index in states
-                    if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _)| **x) {
-                        Some(EndPosStateEntry {
-                            // first element in tuple is index of bit in states
-                            index: Some(start + p),
-                            val: default_state_vars.bit(p) | input.dpval.bit(b),
-                            end_pos,
-                            from_dest,
-                        })
-                    } else {
-                        // if special case - no end pos state. index in states is undefined
-                        Some(EndPosStateEntry {
-                            index: None,
-                            val: input.dpval.bit(b),
-                            end_pos,
-                            from_dest,
-                        })
-                    }
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        end_poses.sort_by_key(|x| x.index);
-        end_poses
-    };
-    let get_updates_for_reads = |prev_reads: &[InfDataParam], input: &InfParInputSys| {
-        prev_reads
-            .iter()
-            .map(|param| {
-                (
-                    *param,
-                    match param {
-                        InfDataParam::EndPos(p) => {
-                            UDynVarSys::filled(1, input.dpval.bit(p % dp_len))
-                        }
-                        InfDataParam::MemAddress
-                        | InfDataParam::ProcId
-                        | InfDataParam::TempBuffer(_) => input.dpval.clone(),
-                    },
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-    let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[EndPosStateEntry]| {
-        let mut start = 0;
-        let mut bitvec = vec![];
-        // construct bit vector
-        for EndPosStateEntry {
-            index: pos, val: v, ..
-        } in new_vals
-        {
-            if let Some(pos) = pos {
-                // pos - index in bit in states
-                bitvec.extend((start..*pos).map(|i| ov.bit(i)));
-                bitvec.push(v.clone());
-                start = *pos + 1;
-            }
-        }
-        bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
-        // to dynintvar
-        UDynVarSys::from_iter(bitvec)
-    };
+        .subvalue(state_start + stage_type_len, total_state_bits);
     let func_state = input.state.clone().subvalue(
-        state_start + stage_type_len + state_bit_num,
+        state_start + stage_type_len + total_state_bits,
         func.state_len(),
     );
-    // create_out_state: params: s - stage, sv - state_vars, fs - function state
-    let create_out_state = |s, sv, fs| output_state.clone().concat(s).concat(sv).concat(fs);
-    let output_base = InfParOutputSys::new(config);
-    let mut outputs = vec![];
-    // previous read to store
-    let mut prev_reads = Vec::<InfDataParam>::new();
-    let mut prev_end_pos_states = vec![];
 
-    if temp_buffer_words_to_read.is_empty() && temp_buffer_words_to_read[0].pos != 0 {
-        // make first movement of temp buffer position
-        outputs.push(
-            move_data_pos_stage(
+    // start
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state = |s, sv, fs| output_state.clone().concat(s).concat(sv).concat(fs);
+    let mut last_pos = 0;
+    let mut outputs = vec![];
+    let mut first = true;
+    // read src_params end pos
+    for (i, (_, end_pos)) in src_params.into_iter().enumerate() {
+        let pos = end_pos / dp_len;
+        let mut do_read = false;
+        if last_pos != pos {
+            // movement stage
+            let (output, _) = move_data_pos_stage(
                 create_out_state(
                     UDynVarSys::from_n(outputs.len(), stage_type_len),
-                    default_state_vars.clone(),
+                    state_vars.clone(),
                     func_state.clone(),
                 ),
                 create_out_state(
                     UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
-                    default_state_vars.clone(),
+                    state_vars.clone(),
                     func_state.clone(),
                 ),
                 input,
                 DKIND_TEMP_BUFFER,
-                DPMOVE_FORWARD,
-                temp_buffer_words_to_read[0].pos as u64,
-            )
-            .0,
-        );
-    }
-    if use_read_mem_address_count != 0 {
-        let mut output = output_base.clone();
-        output.state = create_out_state(
-            UDynVarSys::from_n(outputs.len(), stage_type_len),
-            default_state_vars.clone(),
-            func_state.clone(),
-        );
-        output.dkind = DKIND_MEM_ADDRESS.into();
-        if !use_write_mem_address {
-            output.dpmove = DPMOVE_FORWARD.into();
-        }
-        output.dpr = true.into();
-        outputs.push(output);
-        // set previous reads
-        prev_reads = vec![InfDataParam::MemAddress];
-    }
-    if use_proc_id_count != 0 {
-        // update state vars for previous read
-        let state_vars = if use_read_mem_address_count != 0 {
-            apply_to_state_vars(
-                &read_pos_allocs,
-                &default_state_vars,
-                &[(InfDataParam::MemAddress, input.dpval.clone())],
-            )
-        } else {
-            default_state_vars.clone()
-        };
-        prev_reads.clear(); // prev_reads already used
-        let mut output = output_base.clone();
-        output.state = create_out_state(
-            UDynVarSys::from_n(outputs.len(), stage_type_len),
-            state_vars,
-            func_state.clone(),
-        );
-        output.dkind = DKIND_PROC_ID.into();
-        output.dpmove = DPMOVE_FORWARD.into();
-        output.dpr = true.into();
-        outputs.push(output);
-        // set previous reads
-        prev_reads = vec![InfDataParam::ProcId];
-    }
-
-    // main loop of read phase
-    let mut cur_pos = 0;
-    let mut last_pos = 0;
-    let mut last_pos_idx = 0;
-    let mut first = true;
-    let mut stop_processed = false;
-    // in this loop: process entry excluding last entries with different position.
-    for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
-        // rest of iteration
-        if entry.pos != last_pos {
-            if cur_pos != entry.pos {
-                // make movement of temp buffer position before read
-                outputs.push(
-                    move_data_pos_stage(
-                        create_out_state(
-                            UDynVarSys::from_n(outputs.len(), stage_type_len),
-                            default_state_vars.clone(),
-                            func_state.clone(),
-                        ),
-                        create_out_state(
-                            UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
-                            default_state_vars.clone(),
-                            func_state.clone(),
-                        ),
-                        input,
-                        DKIND_TEMP_BUFFER,
-                        if cur_pos < entry.pos {
-                            DPMOVE_FORWARD
-                        } else {
-                            DPMOVE_BACKWARD
-                        },
-                        if cur_pos < entry.pos {
-                            entry.pos - cur_pos
-                        } else {
-                            cur_pos - entry.pos
-                        } as u64,
-                    )
-                    .0,
-                );
-                cur_pos = entry.pos;
-            }
-            // determine next position
-            let next_pos = {
-                let count = temp_buffer_words_to_read[i..]
-                    .iter()
-                    .take_while(|e| e.pos == entry.pos)
-                    .count();
-                if i + count < temp_buffer_words_to_read.len() {
-                    temp_buffer_words_to_read[i + count].pos
+                if last_pos < pos {
+                    DPMOVE_FORWARD
                 } else {
-                    next_phase_position
-                }
-            };
-            for read_stage in 0..2 {
-                if read_stage == 1 && cur_pos == next_pos {
-                    // if next stage - to store and no more movement to next position.
-                    // then skip this stage
-                    // create end_pos_states if for next reading
-                    prev_end_pos_states = new_end_pos_states(last_pos_idx, i, input);
-                    continue;
-                }
-                // read stage and store previous reads
-                let mut output = output_base.clone();
-                let mut new_state = default_state_vars.clone();
-                // update stage
-                new_state = apply_to_state_vars(
-                    &read_pos_allocs,
-                    &new_state,
-                    &get_updates_for_reads(&prev_reads, input),
-                );
-                prev_reads.clear();
-                // update new end pos states
-                new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
-                // special case of end pos - only one unique end pos:
-                let dest_end_pos_pos = prev_end_pos_states.iter().position(
-                    |EndPosStateEntry {
-                         end_pos, from_dest, ..
-                     }| *end_pos == dests[0].1 && *from_dest,
-                );
-                let next_stage = if !prev_end_pos_states.is_empty()
-                    && !have_dest_end_pos_states
-                    && dest_end_pos_pos.is_some()
-                    && !stop_processed
-                {
-                    // check and if end then go to end_stage
-                    stop_processed = true;
-                    dynint_ite(
-                        prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
-                        UDynVarSys::from_n(end_stage, stage_type_len),
-                        UDynVarSys::from_n(outputs.len(), stage_type_len),
-                    )
+                    DPMOVE_FORWARD
+                },
+                if last_pos < pos {
+                    pos - last_pos
                 } else {
-                    UDynVarSys::from_n(outputs.len(), stage_type_len)
-                };
-                prev_end_pos_states.clear();
-                // output setup
-                output.state = create_out_state(next_stage, new_state, func_state.clone());
-                output.dkind = DKIND_TEMP_BUFFER.into();
-                if cur_pos != next_pos {
-                    // make move to next position
-                    output.dpmove = if cur_pos < next_pos {
-                        cur_pos += 1;
-                        DPMOVE_FORWARD.into()
-                    } else {
-                        cur_pos -= 1;
-                        DPMOVE_BACKWARD.into()
-                    };
-                }
-                if read_stage == 0 {
-                    // if store_stage then no reading
-                    output.dpr = true.into();
-                }
-                outputs.push(output);
-                if read_stage == 1 {
-                    // create end_pos_states if next stage
-                    prev_end_pos_states = new_end_pos_states(last_pos_idx, i, input);
-                }
-            }
-            last_pos_idx = i;
+                    last_pos - pos
+                } as u64,
+            );
+            outputs.push(output);
+            do_read = true;
+        } else if first {
+            do_read = true;
         }
-        last_pos = entry.pos;
-        first = false;
-    }
-    // processing state
-    //
-    let mut output = output_base.clone();
-    // update new end pos states
-    let mut new_state = update_end_pos_states(&default_state_vars, &prev_end_pos_states);
-    // special case of end pos - only one unique end pos:
-    let dest_end_pos_pos = prev_end_pos_states.iter().position(
-        |EndPosStateEntry {
-             end_pos, from_dest, ..
-         }| *end_pos == dests[0].1 && *from_dest,
-    );
-    let (next_stage, if_end_control) = if !prev_end_pos_states.is_empty()
-        && !have_dest_end_pos_states
-        && dest_end_pos_pos.is_some()
-        && !stop_processed
-    {
-        // check and if end then go to end_stage
-        (
-            dynint_ite(
-                prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
-                UDynVarSys::from_n(end_stage, stage_type_len),
-                UDynVarSys::from_n(outputs.len(), stage_type_len),
-            ),
-            prev_end_pos_states[dest_end_pos_pos.unwrap()].val.clone(),
-        )
-    } else {
-        // and all dest end pos
-        let and_with_dest_end_pos = dest_end_pos_states
-            .iter()
-            .enumerate()
-            .map(|(idx, (x_end_pos, _))| {
-                // if found in prev_end_pos_states
-                if let Ok(p) = prev_end_pos_states
-                    .binary_search_by_key(&Some(src_end_pos_states.len() + idx), |e| e.index)
-                {
-                    prev_end_pos_states[p].val.clone()
-                } else {
-                    default_state_vars.bit(src_end_pos_states.len() + idx)
-                }
-            })
-            .fold(BoolVarSys::from(true), |a, x| (a.clone() & x.clone()));
-        (
-            dynint_ite(
-                and_with_dest_end_pos.clone(),
-                UDynVarSys::from_n(end_stage, stage_type_len),
-                UDynVarSys::from_n(outputs.len(), stage_type_len),
-            ),
-            and_with_dest_end_pos,
-        )
-    };
-    // prepare inputs for processing function
-    let func_inputs = src_params
-        .into_iter()
-        .map(|(param, end_pos)| {
-            let val = if let Ok(p) = read_pos_allocs.binary_search_by_key(&param, |x| &x.param) {
-                // if stored
-                let pos = read_pos_allocs[p].pos;
-                let len = read_pos_allocs[p].len;
-                UDynVarSys::from_iter((0..len).map(|i| default_state_vars.bit(pos + i)))
-            } else {
-                // if in input
-                match param {
-                    InfDataParam::MemAddress
-                    | InfDataParam::ProcId
-                    | InfDataParam::TempBuffer(_) => input.dpval.clone(),
-                    InfDataParam::EndPos(b) => UDynVarSys::filled(1, input.dpval.bit(b % dp_len)),
-                }
-            };
-            // get source end pos
-            let src_end_limiter = if let Some(p) = prev_end_pos_states
-                .iter()
-                .find(|e| !e.from_dest && e.end_pos == *end_pos)
-            {
-                // if from last read
-                p.val.clone()
-            } else {
-                // if stored in state vars
-                let p = src_end_pos_states
-                    .binary_search_by_key(end_pos, |(x_end_pos, _)| **x_end_pos)
-                    .unwrap();
-                default_state_vars.bit(p)
-            };
-            // filter it
-            dynint_ite(
-                !src_end_limiter,
-                val.clone(),
-                UDynVarSys::from_n(0u8, val.bitnum()),
-            )
-        })
-        .collect::<Vec<_>>();
-    // clear before deterime function input to filter
-    prev_end_pos_states.clear();
-    // now call process function
-    let (next_func_state, out_values) = func.output(func_state.clone(), &func_inputs);
-    // update output states
-    let mut out_to_update = vec![];
-    let mut if_get_end_pos_data_part = false; // if not
-    let mut write_at_process = false;
-    for ((param, _), outval) in dests.into_iter().zip(out_values) {
-        if write_pos_allocs
-            .binary_search_by_key(param, |aentry| aentry.param)
-            .is_ok()
-        {
-            // write to states
-            out_to_update.push((*param, outval.clone()));
-        } else {
-            write_at_process = true;
-            // write to output
-            match param {
-                InfDataParam::MemAddress => {
-                    output.dkind = DKIND_MEM_ADDRESS.into();
-                    output.dpmove = DPMOVE_FORWARD.into();
-                    output.dpval = outval.clone();
-                }
-                InfDataParam::TempBuffer(_) => {
-                    output.dkind = DKIND_TEMP_BUFFER.into();
-                    output.dpval = outval.clone();
-                }
-                InfDataParam::EndPos(p) => {
-                    let end_pos_bit = p % dp_len;
-                    if !if_get_end_pos_data_part {
-                        // use input data part (last read)
-                        output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
-                            if end_pos_bit != i {
-                                input.dpval.bit(i)
-                            } else {
-                                outval.bit(0)
-                            }
-                        }));
-                        if_get_end_pos_data_part = true;
-                    } else {
-                        // use current output datapart
-                        output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
-                            if end_pos_bit != i {
-                                input.dpval.bit(i)
-                            } else {
-                                output.dpval.bit(i)
-                            }
-                        }));
-                    }
-                }
-                _ => (),
+        // read stage
+        if do_read {
+            
+            let mut output = output_base.clone();
+            output.state = create_out_state(
+                UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                state_vars.clone(),
+                func_state.clone(),
+            );
+            output.dkind = DKIND_TEMP_BUFFER.into();
+            output.dpr = true.into();
+            outputs.push(output);
+            // store stage
+            // let mut output = output_base.clone();
+            let mut new_state_vars = state_vars.clone();
+            for (j, (_, end_pos)) in src_params[i..].into_iter().take_while(|(_, end_pos)| {
+                let pos_2 = end_pos / dp_len;
+                pos == pos_2
+            }).enumerate() {
+                let end_pos_val = state_vars.bit(i) | input.dpval.bit(end_pos % dp_len);
+                //new_state_vars = 
             }
+//             output.state = create_out_state(
+//                     UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+//                     UDynVarSys::from_iter(
+//                         (0..state_vars.len()).map(|bit|
+//     
+//                     )
+//                     state_vars.clone(),
+//                     func_state.clone(),
+//                 );
         }
-    }
-    // update state vars by new writes values.
-    new_state = apply_to_state_vars(&write_pos_allocs, &new_state, &out_to_update);
-    // output setup
-    output.state = create_out_state(next_stage, new_state, next_func_state);
-    assert_eq!(join_with_first_write_stage, write_at_process);
-    if write_at_process {
-        // very important: control dpw:
-        output.dpw = if_end_control;
+        last_pos = pos;
     }
 
     (InfParOutputSys::new(input.config()), true.into())
