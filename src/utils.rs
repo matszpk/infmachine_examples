@@ -2455,7 +2455,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             func_state.clone(),
         );
         output.dkind = DKIND_MEM_ADDRESS.into();
-        output.dpmove = DPMOVE_FORWARD.into();
+        if !use_write_mem_address {
+            output.dpmove = DPMOVE_FORWARD.into();
+        }
         output.dpr = true.into();
         outputs.push(output);
         // set previous reads
@@ -2614,7 +2616,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     //
     let mut output = output_base.clone();
     // update new end pos states
-    let new_state = update_end_pos_states(&default_state_vars, &prev_end_pos_states);
+    let mut new_state = update_end_pos_states(&default_state_vars, &prev_end_pos_states);
     // special case of end pos - only one unique end pos:
     let dest_end_pos_pos = prev_end_pos_states.iter().position(
         |EndPosStateEntry {
@@ -2679,20 +2681,73 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // clear before deterime function input to filter
     prev_end_pos_states.clear();
     // now call process function
-    let (next_state, out_value) = func.output(func_state.clone(), &func_inputs);
+    let (next_func_state, out_values) = func.output(func_state.clone(), &func_inputs);
     // update output states
-    // output setup
-    output.state = create_out_state(next_stage, new_state, func_state.clone());
-    output.dkind = DKIND_TEMP_BUFFER.into();
-    if cur_pos != next_phase_position {
-        // make move to next position
-        output.dpmove = if cur_pos < next_phase_position {
-            cur_pos += 1;
-            DPMOVE_FORWARD.into()
+    let mut out_to_update = vec![];
+    let mut can_move_temp_buffer = true;
+    let mut if_get_end_pos_data_part = false; // if not
+    for ((param, _), outval) in dests.into_iter().zip(out_values) {
+        if write_pos_allocs
+            .binary_search_by_key(param, |aentry| aentry.param)
+            .is_ok()
+        {
+            // write to states
+            out_to_update.push((*param, outval.clone()));
         } else {
-            cur_pos -= 1;
-            DPMOVE_BACKWARD.into()
-        };
+            // write to output
+            match param {
+                InfDataParam::MemAddress => {
+                    can_move_temp_buffer = false;
+                    output.dkind = DKIND_MEM_ADDRESS.into();
+                    output.dpmove = DPMOVE_FORWARD.into();
+                    output.dpval = outval.clone();
+                }
+                InfDataParam::TempBuffer(_) => {
+                    output.dpval = outval.clone();
+                }
+                InfDataParam::EndPos(p) => {
+                    let end_pos_bit = p % dp_len;
+                    if !if_get_end_pos_data_part {
+                        // use input data part (last read)
+                        output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
+                            if end_pos_bit != i {
+                                input.dpval.bit(i)
+                            } else {
+                                outval.bit(0)
+                            }
+                        }));
+                        if_get_end_pos_data_part = true;
+                    } else {
+                        // use current output datapart
+                        output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
+                            if end_pos_bit != i {
+                                input.dpval.bit(i)
+                            } else {
+                                output.dpval.bit(i)
+                            }
+                        }));
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+    // update state vars by new writes values.
+    new_state = apply_to_state_vars(&write_pos_allocs, &new_state, &out_to_update);
+    // output setup
+    output.state = create_out_state(next_stage, new_state, next_func_state);
+    if can_move_temp_buffer {
+        output.dkind = DKIND_TEMP_BUFFER.into();
+        if cur_pos != next_phase_position {
+            // make move to next position
+            output.dpmove = if cur_pos < next_phase_position {
+                cur_pos += 1;
+                DPMOVE_FORWARD.into()
+            } else {
+                cur_pos -= 1;
+                DPMOVE_BACKWARD.into()
+            };
+        }
     }
 
     (InfParOutputSys::new(input.config()), true.into())
