@@ -2306,40 +2306,31 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .state
         .clone()
         .subvalue(state_start + stage_type_len, state_bit_num);
-    let apply_to_read_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
-        let mut ov = ov.clone();
-        // TODO: optimize it!!!
-        for v in vs {
-            let p = read_pos_allocs
-                .binary_search_by_key(param, |x| x.param)
-                .unwrap();
-            let start = read_pos_allocs[p].pos;
-            let len = read_pos_allocs[p].len;
-            let ovlen = ov.bitnum();
-            ov = ov
-                .clone()
-                .subvalue(0, start)
-                .concat(v.clone())
-                .concat(ov.subvalue(start + len, ovlen - start - len))
-        }
-    };
-    let apply_to_write_state_vars = |ov: UDynVarSys, param, vs: &[UDynVarSys]| {
-        let mut ov = ov.clone();
-        // TODO: optimize it!!!
-        for v in vs {
-            let p = write_pos_allocs
-                .binary_search_by_key(param, |x| x.param)
-                .unwrap();
-            let start = write_pos_allocs[p].pos;
-            let len = write_pos_allocs[p].len;
-            let ovlen = ov.bitnum();
-            ov = ov
-                .clone()
-                .subvalue(0, start)
-                .concat(v.clone())
-                .concat(ov.subvalue(start + len, ovlen - start - len))
-        }
-    };
+    let apply_to_state_vars =
+        |allocs: &[AllocEntry], ov: UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
+            let mut ov = ov.clone();
+            // get value, pos and lengths tuple
+            let mut val_and_pos = vs
+                .into_iter()
+                .map(|(param, v)| {
+                    let p = allocs.binary_search_by_key(param, |x| x.param).unwrap();
+                    (read_pos_allocs[p].pos, read_pos_allocs[p].len, v.clone())
+                })
+                .collect::<Vec<_>>();
+            // sort by position
+            val_and_pos.sort_by_key(|(p, _, _)| *p);
+            let mut start = 0;
+            let mut bitvec = vec![];
+            // construct bit vector
+            for (pos, len, v) in val_and_pos {
+                bitvec.extend((start..pos).map(|i| ov.bit(i)));
+                bitvec.extend((pos..pos + len).map(|i| ov.bit(i)));
+                start = pos + len;
+            }
+            bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
+            // to dynintvar
+            UDynVarSys::from_iter(bitvec)
+        };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
