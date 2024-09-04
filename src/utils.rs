@@ -2345,13 +2345,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 WordReadUsage::EndPosLimit(b) => {
                     let end_pos = last_pos * dp_len + b;
                     // find end_pos in state - p is index in states
-                    let p = end_pos_states
-                        .binary_search_by_key(&end_pos, |(x, _)| **x)
-                        .unwrap();
-                    Some((
-                        p, // first element in tuple is index of bit in states
-                        default_state_vars.bit(p) | input.dpval.bit(b),
-                    ))
+                    if let Ok(p) = end_pos_states.binary_search_by_key(&end_pos, |(x, _)| **x) {
+                        Some((
+                            Some(p), // first element in tuple is index of bit in states
+                            default_state_vars.bit(p) | input.dpval.bit(b),
+                        ))
+                    } else {
+                        // if special case - no end pos state. index in states is undefined
+                        Some((None, input.dpval.bit(b)))
+                    }
                 }
                 _ => None,
             })
@@ -2359,15 +2361,17 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         end_poses.sort_by_key(|(x, _)| *x);
         end_poses
     };
-    let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[(usize, BoolVarSys)]| {
+    let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[(Option<usize>, BoolVarSys)]| {
         let mut start = 0;
         let mut bitvec = vec![];
         // construct bit vector
         for (pos, v) in new_vals {
-            // pos - index in bit in states
-            bitvec.extend((start..*pos).map(|i| ov.bit(i)));
-            bitvec.push(v.clone());
-            start = *pos + 1;
+            if let Some(pos) = pos {
+                // pos - index in bit in states
+                bitvec.extend((start..*pos).map(|i| ov.bit(i)));
+                bitvec.push(v.clone());
+                start = *pos + 1;
+            }
         }
         bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
         // to dynintvar
@@ -2452,6 +2456,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut last_pos = 0;
     let mut last_pos_idx = 0;
     let mut first = true;
+    let mut stop_processed = false;
     // in this loop: process entry excluding last entries with different position.
     for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
         // rest of iteration
@@ -2525,13 +2530,22 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             prev_reads.clear();
             // update new end pos states
             new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
+            // special case of end pos - only one unique end pos:
+            let next_stage = if !have_dest_end_pos_states && !have_src_pos_states && !stop_processed
+            {
+                // check and if end then go to end_stage
+                stop_processed = true;
+                dynint_ite(
+                    prev_end_pos_states[0].1.clone(),
+                    UDynVarSys::from_n(end_stage, stage_type_len),
+                    UDynVarSys::from_n(outputs.len(), stage_type_len),
+                )
+            } else {
+                UDynVarSys::from_n(outputs.len(), stage_type_len)
+            };
             prev_end_pos_states.clear();
             // output setup
-            output.state = create_out_state(
-                UDynVarSys::from_n(outputs.len(), stage_type_len),
-                new_state,
-                func_state.clone(),
-            );
+            output.state = create_out_state(next_stage, new_state, func_state.clone());
             output.dkind = DKIND_TEMP_BUFFER.into();
             if cur_pos != next_pos {
                 // make move to next position
