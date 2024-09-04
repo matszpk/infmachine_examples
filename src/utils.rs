@@ -1763,17 +1763,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let total_state_bits = src_params.len() + dests.len();
     let mut read_state_bits = 0;
     // end_pos
-    let mut use_mem_address = src_params
+    let use_mem_address = src_params
         .into_iter()
         .chain(dests.into_iter())
         .any(|(param, _)| *param == InfDataParam::MemAddress);
-    let mut use_write_mem_address = dests
+    let use_write_mem_address = dests
         .into_iter()
         .any(|(param, _)| *param == InfDataParam::MemAddress);
-    let mut use_proc_id = src_params
+    let use_proc_id = src_params
         .into_iter()
         .any(|(param, _)| *param == InfDataParam::ProcId);
-    let mut use_proc_id = false;
     let mut last_pos = 0;
     for list in [src_params, dests] {
         let mut first = true;
