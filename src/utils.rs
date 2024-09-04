@@ -1996,6 +1996,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     //   [write, move]
     //   [movement]
 
+    // join mem_address or proc_id read with temp_buffer
+    // No extra stage needed. first movement of temp buffer before reads from
+    // mem_address and proc_id
+
     // join read and process:
     // excluded case: no temp buffer read - must be one temp buffer read.
     // first write and last read is same temp buffer position: and NO read required at write:
@@ -2108,7 +2112,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // in this loop: process entry excluding last entries with different position.
     for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
         // allocate state bits
-        if !first && last_pos != entry.pos {
+        if last_pos != entry.pos {
             // movement stage
             if (first && entry.pos != last_pos)
                 || (!first &&
@@ -2166,7 +2170,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         first = false;
     }
     // determine next temp buffer position
-    let next_position = if !temp_buffer_words_to_write.is_empty() {
+    let next_phase_position = if !temp_buffer_words_to_write.is_empty() {
         temp_buffer_words_to_write[0].pos
     } else {
         temp_buffer_step as usize
@@ -2181,8 +2185,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // determine join with process stage and first write stage
     let join_with_first_write_stage = use_write_mem_address
         // if only one move needed to first write position
-        || ((next_position + 1 >= last_pos
-            && next_position <= last_pos + 1) && (
+        || ((next_phase_position + 1 >= last_pos
+            && next_phase_position <= last_pos + 1) && (
             if let Some(write) = temp_buffer_words_to_write.get(0) {
                 // if whole temp buffer data part
                 (matches!(write.usage, WordWriteUsage::TempBuffer)
@@ -2306,7 +2310,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .clone()
         .subvalue(state_start + stage_type_len, state_bit_num);
     let apply_to_state_vars =
-        |allocs: &[AllocEntry], ov: UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
+        |allocs: &[AllocEntry], ov: &UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
             // get value, pos and lengths tuple
             let mut val_and_pos = vs
                 .into_iter()
@@ -2335,6 +2339,148 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     );
     // create_out_state: params: s - stage, sv - state_vars, fs - function state
     let create_out_state = |s, sv, fs| output_state.clone().concat(s).concat(sv).concat(fs);
+    let output_base = InfParOutputSys::new(config);
+    let mut outputs = vec![];
+    // previous read to store
+    let mut prev_reads = Vec::<InfDataParam>::new();
+
+    if temp_buffer_words_to_read.is_empty() && temp_buffer_words_to_read[0].pos != 0 {
+        // make first movement of temp buffer position
+        outputs.push(
+            move_data_pos_stage(
+                create_out_state(
+                    UDynVarSys::from_n(outputs.len(), stage_type_len),
+                    default_state_vars.clone(),
+                    func_state.clone(),
+                ),
+                create_out_state(
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                    default_state_vars.clone(),
+                    func_state.clone(),
+                ),
+                input,
+                DKIND_TEMP_BUFFER,
+                DPMOVE_FORWARD,
+                temp_buffer_words_to_read[0].pos as u64,
+            )
+            .0,
+        );
+    }
+    if use_read_mem_address_count != 0 {
+        let mut output = output_base.clone();
+        output.state = create_out_state(
+            UDynVarSys::from_n(outputs.len(), stage_type_len),
+            default_state_vars.clone(),
+            func_state.clone(),
+        );
+        output.dkind = DKIND_MEM_ADDRESS.into();
+        output.dpmove = DPMOVE_FORWARD.into();
+        output.dpr = true.into();
+        outputs.push(output);
+        // set previous reads
+        prev_reads = vec![InfDataParam::MemAddress];
+    }
+    if use_proc_id_count != 0 {
+        // update state vars for previous read
+        let state_vars = if use_read_mem_address_count != 0 {
+            apply_to_state_vars(
+                &read_pos_allocs,
+                &default_state_vars,
+                &[(InfDataParam::MemAddress, input.dpval.clone())],
+            )
+        } else {
+            default_state_vars.clone()
+        };
+        prev_reads.clear(); // prev_reads already used
+        let mut output = output_base.clone();
+        output.state = create_out_state(
+            UDynVarSys::from_n(outputs.len(), stage_type_len),
+            default_state_vars.clone(),
+            func_state.clone(),
+        );
+        output.dkind = DKIND_PROC_ID.into();
+        output.dpmove = DPMOVE_FORWARD.into();
+        output.dpr = true.into();
+        outputs.push(output);
+        // set previous reads
+        prev_reads = vec![InfDataParam::ProcId];
+    }
+
+    // main loop of read phase
+    let mut cur_pos = 0;
+    let mut last_pos = 0;
+    let mut last_pos_idx = 0;
+    let mut first = true;
+    // in this loop: process entry excluding last entries with different position.
+    for (i, entry) in temp_buffer_words_to_read.iter().enumerate() {
+        // rest of iteration
+        if entry.pos != last_pos {
+            if cur_pos != entry.pos {
+                // make movement of temp buffer position before read
+                outputs.push(
+                    move_data_pos_stage(
+                        create_out_state(
+                            UDynVarSys::from_n(outputs.len(), stage_type_len),
+                            default_state_vars.clone(),
+                            func_state.clone(),
+                        ),
+                        create_out_state(
+                            UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                            default_state_vars.clone(),
+                            func_state.clone(),
+                        ),
+                        input,
+                        DKIND_TEMP_BUFFER,
+                        if cur_pos < entry.pos {
+                            DPMOVE_FORWARD
+                        } else {
+                            DPMOVE_BACKWARD
+                        },
+                        if cur_pos < entry.pos {
+                            entry.pos - cur_pos
+                        } else {
+                            cur_pos - entry.pos
+                        } as u64,
+                    )
+                    .0,
+                );
+                cur_pos = entry.pos;
+            }
+            // determine next position
+            let next_pos = {
+                let count = temp_buffer_words_to_read[i..]
+                    .iter()
+                    .take_while(|e| e.pos == entry.pos)
+                    .count();
+                if i + count < temp_buffer_words_to_read.len() {
+                    temp_buffer_words_to_read[i + count].pos
+                } else {
+                    next_phase_position
+                }
+            };
+            // read stage
+            let mut output = output_base.clone();
+            output.state = create_out_state(
+                UDynVarSys::from_n(outputs.len(), stage_type_len),
+                default_state_vars.clone(),
+                func_state.clone(),
+            );
+            output.dkind = DKIND_TEMP_BUFFER.into();
+            if cur_pos != next_pos {
+                // make move to next position
+                output.dpmove = if cur_pos < next_pos {
+                    DPMOVE_FORWARD.into()
+                } else {
+                    DPMOVE_BACKWARD.into()
+                };
+            }
+            output.dpr = true.into();
+            outputs.push(output);
+            last_pos_idx = i;
+        }
+        last_pos = entry.pos;
+        first = false;
+    }
 
     (InfParOutputSys::new(input.config()), true.into())
 }
