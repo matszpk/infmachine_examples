@@ -2543,18 +2543,21 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 // update new end pos states
                 new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
                 // special case of end pos - only one unique end pos:
-                let next_stage =
-                    if !have_dest_end_pos_states && !have_src_pos_states && !stop_processed {
-                        // check and if end then go to end_stage
-                        stop_processed = true;
-                        dynint_ite(
-                            prev_end_pos_states[0].1.clone(),
-                            UDynVarSys::from_n(end_stage, stage_type_len),
-                            UDynVarSys::from_n(outputs.len(), stage_type_len),
-                        )
-                    } else {
-                        UDynVarSys::from_n(outputs.len(), stage_type_len)
-                    };
+                let next_stage = if !prev_end_pos_states.is_empty()
+                    && !have_dest_end_pos_states
+                    && !have_src_pos_states
+                    && !stop_processed
+                {
+                    // check and if end then go to end_stage
+                    stop_processed = true;
+                    dynint_ite(
+                        prev_end_pos_states[0].1.clone(),
+                        UDynVarSys::from_n(end_stage, stage_type_len),
+                        UDynVarSys::from_n(outputs.len(), stage_type_len),
+                    )
+                } else {
+                    UDynVarSys::from_n(outputs.len(), stage_type_len)
+                };
                 prev_end_pos_states.clear();
                 // output setup
                 output.state = create_out_state(next_stage, new_state, func_state.clone());
@@ -2583,6 +2586,71 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         last_pos = entry.pos;
         first = false;
+    }
+    // processing state
+    //
+    let mut output = output_base.clone();
+    // update new end pos states
+    let new_state = update_end_pos_states(&default_state_vars, &prev_end_pos_states);
+    // special case of end pos - only one unique end pos:
+    let next_stage = if !prev_end_pos_states.is_empty()
+        && !have_dest_end_pos_states
+        && !have_src_pos_states
+        && !stop_processed
+    {
+        // check and if end then go to end_stage
+        stop_processed = true;
+        dynint_ite(
+            prev_end_pos_states[0].1.clone(),
+            UDynVarSys::from_n(end_stage, stage_type_len),
+            UDynVarSys::from_n(outputs.len(), stage_type_len),
+        )
+    } else {
+        UDynVarSys::from_n(outputs.len(), stage_type_len)
+    };
+    // prepare inputs for processing function
+    let func_inputs = src_params
+        .into_iter()
+        .map(|(param, end_pos)| {
+            let val = if let Ok(p) = read_pos_allocs.binary_search_by_key(&param, |x| &x.param) {
+                // if stored
+                let pos = read_pos_allocs[p].pos;
+                let len = read_pos_allocs[p].len;
+                UDynVarSys::from_iter((0..len).map(|i| default_state_vars.bit(pos + i)))
+            } else {
+                // if in input
+                match param {
+                    InfDataParam::MemAddress
+                    | InfDataParam::ProcId
+                    | InfDataParam::TempBuffer(_) => input.dpval.clone(),
+                    InfDataParam::EndPos(b) => UDynVarSys::filled(1, input.dpval.bit(b % dp_len)),
+                }
+            };
+            // get
+            // filter it
+            //         dynint_ite(
+            //
+            //             , val, UDynVarSys::from_n(0, val.bitnum()));
+            val
+        })
+        .collect::<Vec<_>>();
+    // clear before deterime function input to filter
+    prev_end_pos_states.clear();
+    // now call process function
+    let (next_state, out_value) = func.output(func_state.clone(), &func_inputs);
+    // update output states
+    // output setup
+    output.state = create_out_state(next_stage, new_state, func_state.clone());
+    output.dkind = DKIND_TEMP_BUFFER.into();
+    if cur_pos != next_phase_position {
+        // make move to next position
+        output.dpmove = if cur_pos < next_phase_position {
+            cur_pos += 1;
+            DPMOVE_FORWARD.into()
+        } else {
+            cur_pos -= 1;
+            DPMOVE_BACKWARD.into()
+        };
     }
 
     (InfParOutputSys::new(input.config()), true.into())
