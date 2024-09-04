@@ -2272,6 +2272,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     if (temp_buffer_step as usize) + 1 >= last_pos && (temp_buffer_step as usize) <= last_pos + 1 {
         total_stages += 1;
     }
+    let end_stage = total_stages;
 
     // stages to move backwards. if any DataParam is MemAddress or ProcId then add 1.
     total_stages += 1 + read_mem_address_and_proc_id_stages;
