@@ -2333,6 +2333,30 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             // to dynintvar
             UDynVarSys::from_iter(bitvec)
         };
+    let or_and_apply_to_state_vars =
+        |allocs: &[AllocEntry], ov: &UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
+            // get value, pos and lengths tuple
+            let mut val_and_pos = vs
+                .into_iter()
+                .map(|(param, v)| {
+                    let p = allocs.binary_search_by_key(param, |x| x.param).unwrap();
+                    (read_pos_allocs[p].pos, read_pos_allocs[p].len, v.clone())
+                })
+                .collect::<Vec<_>>();
+            // sort by position
+            val_and_pos.sort_by_key(|(p, _, _)| *p);
+            let mut start = 0;
+            let mut bitvec = vec![];
+            // construct bit vector
+            for (pos, len, v) in val_and_pos {
+                bitvec.extend((start..pos).map(|i| ov.bit(i)));
+                bitvec.extend((0..len).map(|i| v.bit(i) | ov.bit(pos + i)));
+                start = pos + len;
+            }
+            bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
+            // to dynintvar
+            UDynVarSys::from_iter(bitvec)
+        };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
@@ -2343,6 +2367,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut outputs = vec![];
     // previous read to store
     let mut prev_reads = Vec::<InfDataParam>::new();
+    let mut prev_end_pos_states = Vec::<InfDataParam>::new();
 
     if temp_buffer_words_to_read.is_empty() && temp_buffer_words_to_read[0].pos != 0 {
         // make first movement of temp buffer position
@@ -2458,11 +2483,38 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     next_phase_position
                 }
             };
-            // read stage
+            // read stage and store previous reads
             let mut output = output_base.clone();
+            let mut new_state = default_state_vars.clone();
+            {
+                let updates = prev_reads
+                    .iter()
+                    .map(|param| {
+                        (
+                            *param,
+                            match param {
+                                InfDataParam::EndPos(p) => {
+                                    UDynVarSys::filled(1, input.dpval.bit(p % dp_len))
+                                }
+                                InfDataParam::MemAddress
+                                | InfDataParam::ProcId
+                                | InfDataParam::TempBuffer(_) => input.dpval.clone(),
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                // update stage
+                new_state = apply_to_state_vars(&read_pos_allocs, &new_state, &updates);
+            }
+            prev_reads.clear();
+            // create end_pos_states
+            {
+                //
+            }
+            // output setup
             output.state = create_out_state(
                 UDynVarSys::from_n(outputs.len(), stage_type_len),
-                default_state_vars.clone(),
+                new_state,
                 func_state.clone(),
             );
             output.dkind = DKIND_TEMP_BUFFER.into();
