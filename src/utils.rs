@@ -1863,7 +1863,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
         }
         temp_buffer_words_to_write.sort();
-        temp_buffer_words_to_write.dedup();
         temp_buffer_words_to_write
     };
     // check full filling for temp buffer pos that holds end pos to write
