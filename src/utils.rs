@@ -2338,18 +2338,41 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             // to dynintvar
             UDynVarSys::from_iter(bitvec)
         };
-    let or_with_state_vars =
-        |allocs: &[AllocEntry], ov: &UDynVarSys, vs: &[(InfDataParam, UDynVarSys)]| {
-            // get value, pos and lengths tuple
-            vs.into_iter()
-                .map(|(param, v)| {
-                    let p = allocs.binary_search_by_key(param, |x| x.param).unwrap();
-                    let pos = read_pos_allocs[p].pos;
-                    let len = read_pos_allocs[p].len;
-                    UDynVarSys::from_iter((0..len).map(|i| ov.bit(pos + i))) | v.clone()
-                })
-                .collect::<Vec<_>>()
-        };
+    let new_end_pos_states = |last_pos_idx, i, input: &InfParInputSys| {
+        let mut end_poses = temp_buffer_words_to_read[last_pos_idx..i]
+            .iter()
+            .filter_map(|e| match e.usage {
+                WordReadUsage::EndPosLimit(b) => {
+                    let end_pos = last_pos * dp_len + b;
+                    // find end_pos in state - p is index in states
+                    let p = end_pos_states
+                        .binary_search_by_key(&end_pos, |(x, _)| **x)
+                        .unwrap();
+                    Some((
+                        p, // first element in tuple is index of bit in states
+                        default_state_vars.bit(p) | input.dpval.bit(b),
+                    ))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        end_poses.sort_by_key(|(x, _)| *x);
+        end_poses
+    };
+    let update_end_pos_states = |ov: &UDynVarSys, new_vals: &[(usize, BoolVarSys)]| {
+        let mut start = 0;
+        let mut bitvec = vec![];
+        // construct bit vector
+        for (pos, v) in new_vals {
+            // pos - index in bit in states
+            bitvec.extend((start..*pos).map(|i| ov.bit(i)));
+            bitvec.push(v.clone());
+            start = *pos + 1;
+        }
+        bitvec.extend((start..ov.len()).map(|i| ov.bit(i)));
+        // to dynintvar
+        UDynVarSys::from_iter(bitvec)
+    };
     let func_state = input.state.clone().subvalue(
         state_start + stage_type_len + state_bit_num,
         func.state_len(),
@@ -2360,7 +2383,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut outputs = vec![];
     // previous read to store
     let mut prev_reads = Vec::<InfDataParam>::new();
-    let mut prev_end_pos_states = Vec::<InfDataParam>::new();
+    let mut prev_end_pos_states = vec![];
 
     if temp_buffer_words_to_read.is_empty() && temp_buffer_words_to_read[0].pos != 0 {
         // make first movement of temp buffer position
@@ -2413,7 +2436,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let mut output = output_base.clone();
         output.state = create_out_state(
             UDynVarSys::from_n(outputs.len(), stage_type_len),
-            default_state_vars.clone(),
+            state_vars,
             func_state.clone(),
         );
         output.dkind = DKIND_PROC_ID.into();
@@ -2500,11 +2523,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 new_state = apply_to_state_vars(&read_pos_allocs, &new_state, &updates);
             }
             prev_reads.clear();
-            // create end_pos_states
-            {
-                // update stage
-                //new_state = apply_to_state_vars(&dest_pos_allocs, &new_state, &updates);
-            }
+            // update new end pos states
+            new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
+            prev_end_pos_states.clear();
             // output setup
             output.state = create_out_state(
                 UDynVarSys::from_n(outputs.len(), stage_type_len),
@@ -2524,6 +2545,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
             output.dpr = true.into();
             outputs.push(output);
+
+            // create end_pos_states
+            prev_end_pos_states = new_end_pos_states(last_pos_idx, i, input);
             last_pos_idx = i;
         }
         last_pos = entry.pos;
