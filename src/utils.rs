@@ -2559,9 +2559,64 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             }
             output.dpr = true.into();
             outputs.push(output);
-
             // create end_pos_states
             prev_end_pos_states = new_end_pos_states(last_pos_idx, i, input);
+            // next stage - store stage: if need next stage to move to next position
+            // otherwise - it is fused in next read
+            if cur_pos != next_pos {
+                let mut output = output_base.clone();
+                let mut new_state = default_state_vars.clone();
+                {
+                    let updates = prev_reads
+                        .iter()
+                        .map(|param| {
+                            (
+                                *param,
+                                match param {
+                                    InfDataParam::EndPos(p) => {
+                                        UDynVarSys::filled(1, input.dpval.bit(p % dp_len))
+                                    }
+                                    InfDataParam::MemAddress
+                                    | InfDataParam::ProcId
+                                    | InfDataParam::TempBuffer(_) => input.dpval.clone(),
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    // update stage
+                    new_state = apply_to_state_vars(&read_pos_allocs, &new_state, &updates);
+                }
+                prev_reads.clear();
+                // update new end pos states
+                new_state = update_end_pos_states(&new_state, &prev_end_pos_states);
+                // special case of end pos - only one unique end pos:
+                let next_stage =
+                    if !have_dest_end_pos_states && !have_src_pos_states && !stop_processed {
+                        // check and if end then go to end_stage
+                        stop_processed = true;
+                        dynint_ite(
+                            prev_end_pos_states[0].1.clone(),
+                            UDynVarSys::from_n(end_stage, stage_type_len),
+                            UDynVarSys::from_n(outputs.len(), stage_type_len),
+                        )
+                    } else {
+                        UDynVarSys::from_n(outputs.len(), stage_type_len)
+                    };
+                prev_end_pos_states.clear();
+                output.state = create_out_state(next_stage, new_state, func_state.clone());
+                output.dkind = DKIND_TEMP_BUFFER.into();
+                if cur_pos != next_pos {
+                    // make move to next position
+                    output.dpmove = if cur_pos < next_pos {
+                        cur_pos += 1;
+                        DPMOVE_FORWARD.into()
+                    } else {
+                        cur_pos -= 1;
+                        DPMOVE_BACKWARD.into()
+                    };
+                }
+                outputs.push(output);
+            }
             last_pos_idx = i;
         }
         last_pos = entry.pos;
