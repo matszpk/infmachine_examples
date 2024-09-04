@@ -2469,8 +2469,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             if cur_pos != next_pos {
                 // make move to next position
                 output.dpmove = if cur_pos < next_pos {
+                    cur_pos += 1;
                     DPMOVE_FORWARD.into()
                 } else {
+                    cur_pos -= 1;
                     DPMOVE_BACKWARD.into()
                 };
             }
