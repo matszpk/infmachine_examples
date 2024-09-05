@@ -1774,7 +1774,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut total_stages = 0;
     // store all end pos limiters
     let total_state_bits = src_len + dest_len;
-    let mut read_state_bits = 0;
     // end_pos
     let mut last_pos = 0;
     for list in [src_params, dests] {
@@ -1792,6 +1791,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
     }
     // src params
+    let mut read_state_bits = 0;
     for (param, _) in src_params {
         match param {
             InfDataParam::EndPos(p) => {
