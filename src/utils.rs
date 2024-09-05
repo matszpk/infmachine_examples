@@ -2288,7 +2288,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         outputs.push(output);
         end_of_stage_final = end_of_stage;
     }
+    assert_eq!(total_stages, outputs.len());
     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
-
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
