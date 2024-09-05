@@ -772,6 +772,46 @@ fn gen_process_mem_address_to_temp_buffer_test(
     mobj.to_machine().to_toml()
 }
 
+fn parse_infdataparam_elem(s: &str) -> Result<(InfDataParam, usize), String> {
+    // InfDataParam formats: "m" - mem_address, "p" - proc_id, "t4" - temp buffer pos 4,
+    // "e7" - end pos index 7.
+    // elem format: {InfDataParam}:end_pos. example: "t7:1"
+    if s.is_empty() {
+        return Err("Empty string".to_string());
+    }
+    let (param, r) = if s.starts_with("m") {
+        (InfDataParam::MemAddress, &s[1..])
+    } else if s.starts_with("p") {
+        (InfDataParam::ProcId, &s[1..])
+    } else if s.starts_with("t") || s.starts_with("e") {
+        let is_end_pos = s.starts_with("e");
+        let r = &s[1..];
+        if let Some(end) = r.find(':') {
+            let pos = r[0..end]
+                .parse()
+                .map_err(|e: std::num::ParseIntError| e.to_string())?;
+            let param = if is_end_pos {
+                InfDataParam::EndPos(pos)
+            } else {
+                InfDataParam::TempBuffer(pos)
+            };
+            (param, &r[end..])
+        } else {
+            return Err("No delimiter".to_string());
+        }
+    } else {
+        return Err("Unknown type".to_string());
+    };
+    if r.starts_with(":") {
+        let end_pos = r[1..]
+            .parse()
+            .map_err(|e: std::num::ParseIntError| e.to_string())?;
+        Ok((param, end_pos))
+    } else {
+        Err("No delimiter".to_string())
+    }
+}
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
@@ -1035,6 +1075,25 @@ fn main() {
                 )
                 .unwrap())
             );
+        }
+        "xornn_process_infinite_data_test" => {
+            // dummy test for testing par_process_infinite_data_stage
+            let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+            let src_params = args
+                .next()
+                .unwrap()
+                .split(',')
+                .map(|x| parse_infdataparam_elem(x).unwrap())
+                .collect::<Vec<_>>();
+            let dests = args
+                .next()
+                .unwrap()
+                .split(',')
+                .map(|x| parse_infdataparam_elem(x).unwrap())
+                .collect::<Vec<_>>();
+            println!("TempBuferStep: {}", temp_buffer_step);
+            println!("SrcParams: {:?}", src_params);
+            println!("Dests: {:?}", dests);
         }
         _ => {
             panic!("Unknown example");
