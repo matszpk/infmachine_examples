@@ -1741,7 +1741,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         end_pos_words.dedup();
         end_pos_words
     };
-    for (data_param, _) in src_params {
+    for (data_param, _) in src_params.into_iter().chain(dests.into_iter()) {
         if let InfDataParam::TempBuffer(pos) = data_param {
             // temp buffer positions shouldn't cover words with end pos markers
             assert!(end_pos_words.binary_search(pos).is_err());
@@ -1759,11 +1759,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .into_iter()
         .all(|(param, _)| *param != InfDataParam::ProcId));
 
-    let mut total_stages = 0;
-    // store all end pos limiters
-    let total_state_bits = src_len + dest_len;
-    let mut read_state_bits = 0;
-    // end_pos
+    // check usage of other sources
     let use_mem_address = src_params
         .into_iter()
         .chain(dests.into_iter())
@@ -1774,6 +1770,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let use_proc_id = src_params
         .into_iter()
         .any(|(param, _)| *param == InfDataParam::ProcId);
+
+    let mut total_stages = 0;
+    // store all end pos limiters
+    let total_state_bits = src_len + dest_len;
+    let mut read_state_bits = 0;
+    // end_pos
     let mut last_pos = 0;
     for list in [src_params, dests] {
         let mut first = true;
@@ -2049,7 +2051,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         outputs.push(output);
         state_pos += param_len;
     }
-    // state_pos doesn't changed
     // process stage
     let (func_inputs, state_output_pos) = {
         let mut func_inputs = vec![];
@@ -2100,7 +2101,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     );
     outputs.push(output);
 
-    // state_pos doesn't changed
+    // start from same position in states as read phase.
+    let mut state_pos = src_len + dest_len;
     // write stages - write phase
     for (i, (param, _)) in dests.into_iter().enumerate() {
         let pos = match param {
