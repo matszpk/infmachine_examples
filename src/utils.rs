@@ -555,6 +555,7 @@ pub trait FunctionNN {
     fn state_len(&self) -> usize;
     fn input_num(&self) -> usize;
     fn output_num(&self) -> usize;
+    // return (output state, outputs_vec)
     fn output(
         &self,
         input_state: UDynVarSys,
@@ -633,6 +634,43 @@ impl Function1 for Add1Func {
         )
         .concat(UDynVarSys::filled(1, carry));
         (next_state, result)
+    }
+}
+
+pub struct XorNNFuncSample {
+    inout_len: usize,
+    input_num: usize,
+    output_num: usize,
+}
+
+impl XorNNFuncSample {
+    pub fn new(inout_len: usize, input_num: usize, output_num: usize) -> Self {
+        Self {
+            inout_len,
+            input_num,
+            output_num,
+        }
+    }
+}
+
+impl FunctionNN for XorNNFuncSample {
+    fn state_len(&self) -> usize {
+        0
+    }
+    fn input_num(&self) -> usize {
+        self.input_num
+    }
+    fn output_num(&self) -> usize {
+        self.output_num
+    }
+    fn output(&self, _: UDynVarSys, inputs: &[UDynVarSys]) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let mut outputs = (0..self.output_num)
+            .map(|_| UDynVarSys::from_n(0u8, self.inout_len))
+            .collect::<Vec<_>>();
+        for i in 0..self.input_num {
+            outputs[i % self.output_num] ^= &inputs[i];
+        }
+        (UDynVarSys::var(0), outputs)
     }
 }
 
