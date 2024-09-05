@@ -2102,7 +2102,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // state_pos doesn't changed
     // write stages - write phase
-    for (param, _) in dests {
+    for (i, (param, _)) in dests.into_iter().enumerate() {
         let pos = match param {
             InfDataParam::EndPos(p) => {
                 let pos = *p / dp_len;
@@ -2170,13 +2170,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     func_state.clone(),
                 );
                 output.dkind = DKIND_TEMP_BUFFER.into();
-                output.dpw = true.into();
+                // use dest end pos to write
+                output.dpw = !state_vars.bit(src_len + i);
                 let bit = p % dp_len;
-                output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
-                    if bit == i {
+                output.dpval = UDynVarSys::from_iter((0..dp_len).map(|x| {
+                    if bit == x {
                         state_vars.bit(state_pos)
                     } else {
-                        input.dpval.bit(i)
+                        input.dpval.bit(x)
                     }
                 }));
                 outputs.push(output);
@@ -2191,12 +2192,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     func_state.clone(),
                 );
                 output.dkind = DKIND_TEMP_BUFFER.into();
-                output.dpw = true.into();
+                // use dest end pos to write
+                output.dpw = !state_vars.bit(src_len + i);
                 if *param == InfDataParam::MemAddress && use_write_mem_address {
                     output.dpmove = DPMOVE_FORWARD.into();
                 }
                 output.dpval =
-                    UDynVarSys::from_iter((0..dp_len).map(|i| state_vars.bit(state_pos + i)));
+                    UDynVarSys::from_iter((0..dp_len).map(|x| state_vars.bit(state_pos + x)));
                 outputs.push(output);
                 state_pos += dp_len;
             }
