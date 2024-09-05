@@ -2043,7 +2043,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         state_pos += param_len;
     }
     // process stage
-    let (func_inputs, state_output_pos) = {
+    let func_inputs = {
         let mut func_inputs = vec![];
         let mut state_pos = src_len + dest_len;
         for (i, (param, _)) in src_params.iter().enumerate() {
@@ -2053,13 +2053,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 dp_len
             };
             func_inputs.push(dynint_ite(
+                // use src end_pos to filter function inputs (if 1 then zeroing)
                 !state_vars.bit(i),
                 UDynVarSys::from_iter((0..param_len).map(|x| state_vars.bit(state_pos + x))),
                 UDynVarSys::from_n(0u8, param_len),
             ));
             state_pos += param_len;
         }
-        (func_inputs, state_pos)
+        func_inputs
     };
     let (next_func_state, outvals) = func.output(func_state.clone(), &func_inputs);
     let mut output = output_base.clone();
@@ -2074,19 +2075,28 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
         }
+        if read_state_bits > write_state_bits {
+            // fix length of func output bits - fix if read state bits is longer
+            // than write state bits
+            func_output_bits.extend((write_state_bits..read_state_bits).map(|_|
+                BoolVarSys::from(false)));
+        }
         UDynVarSys::from_iter(func_output_bits)
     };
     let next_stage = dynint_ite(
+        // AND for all dest end_pos: E0 and E1 and E2 ... EN. If 1 then go to end.
         (src_len..src_len + dest_len)
             .fold(BoolVarSys::from(true), |a, x| a.clone() & state_vars.bit(x)),
         UDynVarSys::from_n(end_stage, stage_type_len),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
     );
+    // outputs start at same position as inputs
+    let state_pos = src_len + dest_len;
     output.state = create_out_state(
         next_stage,
         state_vars
             .clone()
-            .subvalue(0, state_output_pos)
+            .subvalue(0, state_pos)
             .concat(func_outputs),
         next_func_state,
     );
