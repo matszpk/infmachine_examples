@@ -2078,8 +2078,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         if read_state_bits > write_state_bits {
             // fix length of func output bits - fix if read state bits is longer
             // than write state bits
-            func_output_bits.extend((write_state_bits..read_state_bits).map(|_|
-                BoolVarSys::from(false)));
+            func_output_bits
+                .extend((write_state_bits..read_state_bits).map(|_| BoolVarSys::from(false)));
         }
         UDynVarSys::from_iter(func_output_bits)
     };
@@ -2167,8 +2167,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let bit = p % dp_len;
                 output.dpval = UDynVarSys::from_iter((0..dp_len).map(|x| {
                     if bit == x {
+                        // new value
                         state_vars.bit(state_pos)
                     } else {
+                        // keep old value
                         input.dpval.bit(x)
                     }
                 }));
@@ -2183,10 +2185,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     state_vars.clone(),
                     func_state.clone(),
                 );
-                output.dkind = DKIND_TEMP_BUFFER.into();
+                output.dkind = if *param == InfDataParam::MemAddress {
+                    DKIND_MEM_ADDRESS
+                } else {
+                    DKIND_TEMP_BUFFER
+                }
+                .into();
                 // use dest end pos to write
                 output.dpw = !state_vars.bit(src_len + i);
                 if *param == InfDataParam::MemAddress && use_write_mem_address {
+                    // move forward mem address if writing
                     output.dpmove = DPMOVE_FORWARD.into();
                 }
                 output.dpval =
@@ -2260,6 +2268,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             DKIND_MEM_ADDRESS,
         );
         outputs.push(output);
+        // this is end of stage
         end_of_stage_final = end_of_stage;
     }
     if use_proc_id {
@@ -2278,9 +2287,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             DKIND_PROC_ID,
         );
         outputs.push(output);
+        // this is end of stage
         end_of_stage_final = end_of_stage;
     }
     assert_eq!(total_stages, outputs.len());
+    // prepare end bit
     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
+    // finish generation
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
