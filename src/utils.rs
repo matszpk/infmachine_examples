@@ -1755,7 +1755,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     assert!(!dests.is_empty());
     for (data_param, end_pos) in src_params.iter().chain(dests.iter()) {
         let good = match data_param {
-            InfDataParam::TempBuffer(pos) => *pos < dp_len,
+            InfDataParam::TempBuffer(pos) => *pos < temp_buffer_step as usize,
             InfDataParam::EndPos(idx) => *idx < dp_len * (temp_buffer_step as usize),
             _ => true,
         };
