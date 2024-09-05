@@ -812,6 +812,63 @@ fn parse_infdataparam_elem(s: &str) -> Result<(InfDataParam, usize), String> {
     }
 }
 
+fn gen_process_infinite_data_test(
+    cell_len_bits: u32,
+    data_part_len: u32,
+    temp_buffer_len: u32,
+    proc_num: u64,
+    mem_size: u64,
+    temp_buffer_step: u32,
+    src_params: &[(InfDataParam, usize)],
+    dests: &[(InfDataParam, usize)],
+    func: impl FunctionNN,
+) -> Result<String, toml::ser::Error> {
+    let config = InfParInterfaceConfig {
+        cell_len_bits,
+        data_part_len,
+    };
+    let mut mobj = InfParMachineObjectSys::new(
+        config,
+        InfParEnvConfig {
+            proc_num,
+            flat_memory: true,
+            max_mem_size: Some(mem_size),
+            max_temp_buffer_len: temp_buffer_len,
+        },
+    );
+    mobj.in_state = Some(UDynVarSys::var(2));
+    let mut mach_input = mobj.input();
+    // first stage
+    let (output_1, _) = init_machine_end_pos_stage(
+        UDynVarSys::from_n(0u8, 2),
+        UDynVarSys::from_n(1u8, 2),
+        &mut mach_input,
+        temp_buffer_step,
+    );
+    let (output_2, _) = par_process_infinite_data_stage(
+        UDynVarSys::from_n(1u8, 2),
+        UDynVarSys::from_n(2u8, 2),
+        &mut mach_input,
+        temp_buffer_step,
+        src_params,
+        dests,
+        func,
+    );
+    // stop stage
+    let mut output_3 = InfParOutputSys::new(config);
+    output_3.state = mach_input.state.clone();
+    output_3.stop = true.into();
+    let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let final_state = dynint_table(
+        mach_input.state.clone().subvalue(0, 2),
+        output_stages.into_iter().map(|v| v.to_dynintvar()),
+    );
+    mobj.in_state = Some(mach_input.state);
+    mobj.from_dynintvar(final_state);
+    mobj.to_machine().to_toml()
+}
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
@@ -1091,9 +1148,25 @@ fn main() {
                 .split(',')
                 .map(|x| parse_infdataparam_elem(x).unwrap())
                 .collect::<Vec<_>>();
-            println!("TempBuferStep: {}", temp_buffer_step);
-            println!("SrcParams: {:?}", src_params);
-            println!("Dests: {:?}", dests);
+            assert_ne!(temp_buffer_step, 0);
+            // println!("TempBuferStep: {}", temp_buffer_step);
+            // println!("SrcParams: {:?}", src_params);
+            // println!("Dests: {:?}", dests);
+            print!(
+                "{}",
+                callsys(|| gen_process_infinite_data_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    temp_buffer_step,
+                    &src_params,
+                    &dests,
+                    XorNNFuncSample::new(data_part_len as usize, src_params.len(), dests.len()),
+                )
+                .unwrap())
+            );
         }
         _ => {
             panic!("Unknown example");
