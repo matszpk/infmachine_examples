@@ -1849,6 +1849,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     total_stages += 1 + usize::from(use_mem_address) + usize::from(use_proc_id);
     // calculate total state bits
     let total_state_bits = total_state_bits + std::cmp::max(read_state_bits, write_state_bits);
+    let total_stages = total_stages;
 
     // main routine to generate stages
     let state_start = output_state.bitnum();
@@ -1929,8 +1930,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         .into_iter()
                         .take_while(|(_, end_pos)| {
                             // while end_pos is same data part
-                            let pos_2 = end_pos / dp_len;
-                            pos == pos_2
+                            pos == (end_pos / dp_len)
                         })
                         .enumerate()
                         .map(|(x, (_, end_pos))| {
@@ -1961,19 +1961,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut state_pos = src_len + dest_len;
     for (param, _) in src_params {
         let pos = match param {
-            InfDataParam::EndPos(p) => {
-                let pos = *p / dp_len;
-                if last_pos != pos {
-                    total_stages += 1; // movement stage
-                }
-                Some(pos)
-            }
-            InfDataParam::TempBuffer(pos) => {
-                if last_pos != *pos {
-                    total_stages += 1; // movement stage
-                }
-                Some(*pos)
-            }
+            InfDataParam::EndPos(p) => Some(*p / dp_len),
+            InfDataParam::TempBuffer(pos) => Some(*pos),
             _ => None,
         };
         if let Some(pos) = pos {
@@ -2024,6 +2013,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         output.dpmove = if (!use_write_mem_address && *param == InfDataParam::MemAddress)
             || *param == InfDataParam::ProcId
         {
+            // move forward proc_id or mem_address and mem_address not used to write.
             DPMOVE_FORWARD
         } else {
             DPMOVE_NOTHING
@@ -2031,10 +2021,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .into();
         outputs.push(output);
         // store stage
-        let param_len = if let InfDataParam::EndPos(_) = param {
-            dp_len
-        } else {
+        let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
             1
+        } else {
+            dp_len
         };
         let mut output = output_base.clone();
         let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
@@ -2057,10 +2047,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let mut func_inputs = vec![];
         let mut state_pos = src_len + dest_len;
         for (i, (param, _)) in src_params.iter().enumerate() {
-            let param_len = if let InfDataParam::EndPos(_) = param {
-                dp_len
-            } else {
+            let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
                 1
+            } else {
+                dp_len
             };
             func_inputs.push(dynint_ite(
                 !state_vars.bit(i),
@@ -2077,10 +2067,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let func_outputs = {
         let mut func_output_bits = vec![];
         for ((param, _), outval) in dests.into_iter().zip(outvals.into_iter()) {
-            let param_len = if let InfDataParam::EndPos(_) = param {
-                dp_len
-            } else {
+            let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
                 1
+            } else {
+                dp_len
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
         }
@@ -2107,19 +2097,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // write stages - write phase
     for (i, (param, _)) in dests.into_iter().enumerate() {
         let pos = match param {
-            InfDataParam::EndPos(p) => {
-                let pos = *p / dp_len;
-                if last_pos != pos {
-                    total_stages += 1; // movement stage
-                }
-                Some(pos)
-            }
-            InfDataParam::TempBuffer(pos) => {
-                if last_pos != *pos {
-                    total_stages += 1; // movement stage
-                }
-                Some(*pos)
-            }
+            InfDataParam::EndPos(p) => Some(*p / dp_len),
+            InfDataParam::TempBuffer(pos) => Some(*pos),
             _ => None,
         };
         if let Some(pos) = pos {
