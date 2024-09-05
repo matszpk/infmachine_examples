@@ -563,6 +563,100 @@ pub trait FunctionNN {
     ) -> (UDynVarSys, Vec<UDynVarSys>);
 }
 
+pub struct FuncNNAdapter1<F: Function1> {
+    f: F,
+}
+
+impl<F: Function1> From<F> for FuncNNAdapter1<F> {
+    fn from(f: F) -> Self {
+        Self { f }
+    }
+}
+
+pub struct FuncNNAdapter2<F: Function2> {
+    f: F,
+}
+
+impl<F: Function2> From<F> for FuncNNAdapter2<F> {
+    fn from(f: F) -> Self {
+        Self { f }
+    }
+}
+
+pub struct FuncNNAdapter2_2<F: Function2_2> {
+    f: F,
+}
+
+impl<F: Function2_2> From<F> for FuncNNAdapter2_2<F> {
+    fn from(f: F) -> Self {
+        Self { f }
+    }
+}
+
+impl<F: Function1> FunctionNN for FuncNNAdapter1<F> {
+    fn state_len(&self) -> usize {
+        self.f.state_len()
+    }
+    fn input_num(&self) -> usize {
+        1
+    }
+    fn output_num(&self) -> usize {
+        1
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let (out_state, output) = self.f.output(input_state, inputs[0].clone());
+        (out_state, vec![output])
+    }
+}
+
+impl<F: Function2> FunctionNN for FuncNNAdapter2<F> {
+    fn state_len(&self) -> usize {
+        self.f.state_len()
+    }
+    fn input_num(&self) -> usize {
+        2
+    }
+    fn output_num(&self) -> usize {
+        1
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let (out_state, output) = self
+            .f
+            .output(input_state, inputs[0].clone(), inputs[1].clone());
+        (out_state, vec![output])
+    }
+}
+
+impl<F: Function2_2> FunctionNN for FuncNNAdapter2_2<F> {
+    fn state_len(&self) -> usize {
+        self.f.state_len()
+    }
+    fn input_num(&self) -> usize {
+        2
+    }
+    fn output_num(&self) -> usize {
+        2
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let (out_state, output, output2) =
+            self.f
+                .output(input_state, inputs[0].clone(), inputs[1].clone());
+        (out_state, vec![output, output2])
+    }
+}
+
 pub struct Copy1Func {}
 
 impl Copy1Func {
