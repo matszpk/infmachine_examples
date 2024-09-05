@@ -3,9 +3,7 @@ use gategen::dynintvar::*;
 use gategen::intvar::*;
 use infmachine_gen::*;
 
-use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Debug;
-use std::hash::Hash;
 
 // Utilities for machine.
 // General utitities for machine creation. Utilities designed to be generic and usable
@@ -1698,6 +1696,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     )
 }
 
+// main routine to process infinite data (mem_address, proc_id and temp_buffer).
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -1707,9 +1706,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     dests: &[(InfDataParam, usize)],
     func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
+    let src_len = src_params.len();
+    let dest_len = dests.len();
     assert_eq!(output_state.bitnum(), next_state.bitnum());
-    assert_eq!(func.input_num(), src_params.len());
-    assert_eq!(func.output_num(), dests.len());
+    assert_eq!(func.input_num(), src_len);
+    assert_eq!(func.output_num(), dest_len);
     let config = input.config();
     let dp_len = config.data_part_len as usize;
     // src_params can be empty (no input for functions)
@@ -1749,10 +1750,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     {
         let mut dests = dests.to_vec();
         dests.sort();
-        let old_dest_len = dests.len();
+        let old_dest_len = dest_len;
         dests.dedup();
         // check whether dests have only one per different InfDataParam.
-        assert_eq!(old_dest_len, dests.len());
+        assert_eq!(old_dest_len, dest_len);
     }
     assert!(dests
         .into_iter()
@@ -1760,7 +1761,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     let mut total_stages = 0;
     // store all end pos limiters
-    let total_state_bits = src_params.len() + dests.len();
+    let total_state_bits = src_len + dest_len;
     let mut read_state_bits = 0;
     // end_pos
     let use_mem_address = src_params
@@ -1870,7 +1871,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut last_pos = 0;
     let mut outputs = vec![];
     // read src_params and dests end pos
-    for list in [src_params, dests] {
+    for (start, list) in [(0, src_params), (src_len, dests)] {
         let mut first = true;
         for (i, (_, end_pos)) in list.into_iter().enumerate() {
             let pos = end_pos / dp_len;
@@ -1928,13 +1929,18 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                             let pos_2 = end_pos / dp_len;
                             pos == pos_2
                         })
-                        .map(|(_, end_pos)| input.dpval.bit(end_pos % dp_len)),
+                        .enumerate()
+                        .map(|(x, (_, end_pos))| {
+                            state_vars.bit(start + i + x) | input.dpval.bit(end_pos % dp_len)
+                        }),
                 );
                 let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
-                    if x < i || x >= i + end_poses.len() {
+                    if x < start + i || x >= start + i + end_poses.len() {
+                        // old bit
                         state_vars.bit(x)
                     } else {
-                        end_poses.bit(x - i).clone()
+                        // new bit from end pos
+                        end_poses.bit(x - i - start).clone()
                     }
                 }));
                 output.state = create_out_state(
@@ -1948,8 +1954,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             first = false;
         }
     }
-    // read params
-    let mut state_pos = src_params.len() + dests.len();
+    // read params - read phase
+    let mut state_pos = src_len + dest_len;
     for (param, _) in src_params {
         let pos = match param {
             InfDataParam::EndPos(p) => {
@@ -2043,10 +2049,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         outputs.push(output);
         state_pos += param_len;
     }
+    // state_pos doesn't changed
     // process stage
     let (func_inputs, state_output_pos) = {
         let mut func_inputs = vec![];
-        let mut state_pos = src_params.len() + dests.len();
+        let mut state_pos = src_len + dest_len;
         for (i, (param, _)) in src_params.iter().enumerate() {
             let param_len = if let InfDataParam::EndPos(_) = param {
                 dp_len
@@ -2067,7 +2074,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // get function output bitvector
     let func_outputs = {
         let mut func_output_bits = vec![];
-        for ((param, dest), outval) in dests.into_iter().zip(outvals.into_iter()) {
+        for ((param, _), outval) in dests.into_iter().zip(outvals.into_iter()) {
             let param_len = if let InfDataParam::EndPos(_) = param {
                 dp_len
             } else {
@@ -2077,9 +2084,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         UDynVarSys::from_iter(func_output_bits)
     };
-    // TODO: fix for end loop
-    output.state = create_out_state(
+    let next_stage = dynint_ite(
+        (src_len..src_len + dest_len)
+            .fold(BoolVarSys::from(true), |a, x| a.clone() & state_vars.bit(x)),
+        UDynVarSys::from_n(end_stage, stage_type_len),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+    );
+    output.state = create_out_state(
+        next_stage,
         state_vars
             .clone()
             .subvalue(0, state_output_pos)
@@ -2088,5 +2100,193 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     );
     outputs.push(output);
 
-    (InfParOutputSys::new(input.config()), true.into())
+    // state_pos doesn't changed
+    // write stages - write phase
+    for (param, _) in dests {
+        let pos = match param {
+            InfDataParam::EndPos(p) => {
+                let pos = *p / dp_len;
+                if last_pos != pos {
+                    total_stages += 1; // movement stage
+                }
+                Some(pos)
+            }
+            InfDataParam::TempBuffer(pos) => {
+                if last_pos != *pos {
+                    total_stages += 1; // movement stage
+                }
+                Some(*pos)
+            }
+            _ => None,
+        };
+        if let Some(pos) = pos {
+            if last_pos != pos {
+                // movement stage
+                let (output, _) = move_data_pos_stage(
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len(), stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    create_out_state(
+                        UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                        state_vars.clone(),
+                        func_state.clone(),
+                    ),
+                    input,
+                    DKIND_TEMP_BUFFER,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_FORWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
+                outputs.push(output);
+                last_pos = pos;
+            }
+        }
+        match param {
+            InfDataParam::EndPos(p) => {
+                // read stage
+                let mut output = output_base.clone();
+                output.state = create_out_state(
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                    state_vars.clone(),
+                    func_state.clone(),
+                );
+                output.dkind = DKIND_TEMP_BUFFER.into();
+                output.dpr = true.into();
+                outputs.push(output);
+                // write stage
+                let mut output = output_base.clone();
+                output.state = create_out_state(
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                    state_vars.clone(),
+                    func_state.clone(),
+                );
+                output.dkind = DKIND_TEMP_BUFFER.into();
+                output.dpw = true.into();
+                let bit = p % dp_len;
+                output.dpval = UDynVarSys::from_iter((0..dp_len).map(|i| {
+                    if bit == i {
+                        state_vars.bit(state_pos)
+                    } else {
+                        input.dpval.bit(i)
+                    }
+                }));
+                outputs.push(output);
+                state_pos += 1;
+            }
+            InfDataParam::MemAddress | InfDataParam::TempBuffer(_) => {
+                // write stage
+                let mut output = output_base.clone();
+                output.state = create_out_state(
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+                    state_vars.clone(),
+                    func_state.clone(),
+                );
+                output.dkind = DKIND_TEMP_BUFFER.into();
+                output.dpw = true.into();
+                if *param == InfDataParam::MemAddress && use_write_mem_address {
+                    output.dpmove = DPMOVE_FORWARD.into();
+                }
+                output.dpval =
+                    UDynVarSys::from_iter((0..dp_len).map(|i| state_vars.bit(state_pos + i)));
+                outputs.push(output);
+                state_pos += dp_len;
+            }
+            _ => {
+                panic!("Unexpected!");
+            }
+        }
+    }
+    // stage to move to next data part
+    // movement stage
+    let (output, _) = move_data_pos_stage(
+        create_out_state(
+            UDynVarSys::from_n(outputs.len(), stage_type_len),
+            state_vars.clone(),
+            func_state.clone(),
+        ),
+        create_out_state(
+            // move to start
+            UDynVarSys::from_n(0u8, stage_type_len),
+            state_vars.clone(),
+            func_state.clone(),
+        ),
+        input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        ((temp_buffer_step as usize) - last_pos) as u64,
+    );
+    outputs.push(output);
+
+    // end phase move back
+    let (output, mut end_of_stage_final) = data_pos_to_start_stage(
+        create_out_state(
+            UDynVarSys::from_n(outputs.len(), stage_type_len),
+            state_vars.clone(),
+            func_state.clone(),
+        ),
+        create_out_state(
+            if use_mem_address || use_proc_id {
+                UDynVarSys::from_n(outputs.len() + 1, stage_type_len)
+            } else {
+                UDynVarSys::from_n(0u8, stage_type_len)
+            },
+            state_vars.clone(),
+            func_state.clone(),
+        ),
+        input,
+        DKIND_TEMP_BUFFER,
+    );
+    outputs.push(output);
+    if use_mem_address {
+        let (output, end_of_stage) = data_pos_to_start_stage(
+            create_out_state(
+                UDynVarSys::from_n(outputs.len(), stage_type_len),
+                state_vars.clone(),
+                func_state.clone(),
+            ),
+            create_out_state(
+                if use_proc_id {
+                    UDynVarSys::from_n(outputs.len() + 1, stage_type_len)
+                } else {
+                    UDynVarSys::from_n(0u8, stage_type_len)
+                },
+                state_vars.clone(),
+                func_state.clone(),
+            ),
+            input,
+            DKIND_MEM_ADDRESS,
+        );
+        outputs.push(output);
+        end_of_stage_final = end_of_stage;
+    }
+    if use_proc_id {
+        let (output, end_of_stage) = data_pos_to_start_stage(
+            create_out_state(
+                UDynVarSys::from_n(outputs.len(), stage_type_len),
+                state_vars.clone(),
+                func_state.clone(),
+            ),
+            create_out_state(
+                UDynVarSys::from_n(0u8, stage_type_len),
+                state_vars.clone(),
+                func_state.clone(),
+            ),
+            input,
+            DKIND_PROC_ID,
+        );
+        outputs.push(output);
+        end_of_stage_final = end_of_stage;
+    }
+    let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
+
+    finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
