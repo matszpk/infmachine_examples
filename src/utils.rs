@@ -1774,6 +1774,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     None
                 }
             })
+            .chain(
+                src_params
+                    .iter()
+                    .chain(dests.iter())
+                    .map(|(_, end_pos)| end_pos / dp_len),
+            )
             .collect::<Vec<_>>();
         end_pos_words.sort();
         end_pos_words.dedup();
