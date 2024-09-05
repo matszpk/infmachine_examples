@@ -782,13 +782,25 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_proc_id_to_temp_buffer_stage(
+    // par_process_proc_id_to_temp_buffer_stage(
+    //     output_state,
+    //     next_state,
+    //     input,
+    //     temp_buffer_step,
+    //     temp_buffer_step_pos,
+    //     Copy1Func::new(),
+    // )
+    par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
         temp_buffer_step,
-        temp_buffer_step_pos,
-        Copy1Func::new(),
+        &[(InfDataParam::ProcId, END_POS_PROC_ID)],
+        &[(
+            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            END_POS_PROC_ID,
+        )],
+        FuncNNAdapter1::from(Copy1Func::new()),
     )
 }
 
@@ -801,12 +813,21 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_proc_id_to_mem_address_stage(
+    // par_process_proc_id_to_mem_address_stage(
+    //     output_state,
+    //     next_state,
+    //     input,
+    //     temp_buffer_step,
+    //     Copy1Func::new(),
+    // )
+    par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
         temp_buffer_step,
-        Copy1Func::new(),
+        &[(InfDataParam::ProcId, END_POS_PROC_ID)],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter1::from(Copy1Func::new()),
     )
 }
 
