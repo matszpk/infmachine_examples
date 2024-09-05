@@ -668,7 +668,8 @@ impl FunctionNN for XorNNFuncSample {
             .map(|_| UDynVarSys::from_n(0u8, self.inout_len))
             .collect::<Vec<_>>();
         for i in 0..self.input_num {
-            outputs[i % self.output_num] ^= &inputs[i];
+            outputs[i % self.output_num] ^=
+                UDynVarSys::try_from_n(inputs[i].clone(), self.inout_len).unwrap();
         }
         (UDynVarSys::var(0), outputs)
     }
