@@ -1843,8 +1843,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     }
     // move to next data part
     total_stages += 1;
-    // add move back stages
+    // end_stage - stage where is end of algorithm - start moving to start.
     let end_stage = total_stages;
+    // add move back stages
     total_stages += 1 + usize::from(use_mem_address) + usize::from(use_proc_id);
     // calculate total state bits
     let total_state_bits = total_state_bits + std::cmp::max(read_state_bits, write_state_bits);
@@ -1896,7 +1897,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     if last_pos < pos {
                         DPMOVE_FORWARD
                     } else {
-                        DPMOVE_FORWARD
+                        DPMOVE_BACKWARD
                     },
                     if last_pos < pos {
                         pos - last_pos
@@ -1994,7 +1995,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     if last_pos < pos {
                         DPMOVE_FORWARD
                     } else {
-                        DPMOVE_FORWARD
+                        DPMOVE_BACKWARD
                     },
                     if last_pos < pos {
                         pos - last_pos
@@ -2140,7 +2141,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     if last_pos < pos {
                         DPMOVE_FORWARD
                     } else {
-                        DPMOVE_FORWARD
+                        DPMOVE_BACKWARD
                     },
                     if last_pos < pos {
                         pos - last_pos
