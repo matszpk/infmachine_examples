@@ -1050,6 +1050,290 @@ pub fn par_process_mem_address_stage<F: Function1>(
     )
 }
 
+// OP(proc_id, temp_buffer) -> temp_buffer
+pub fn par_process_proc_id_temp_buffer_to_temp_buffer_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    dest_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    dest_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::ProcId, END_POS_PROC_ID),
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(
+            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            if dest_proc_id_end_pos {
+                END_POS_PROC_ID
+            } else {
+                END_POS_MEM_ADDRESS
+            },
+        )],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(proc_id, mem_address) -> mem_address
+pub fn par_process_proc_id_mem_address_to_mem_address_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::ProcId, END_POS_PROC_ID),
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+        ],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(proc_id, mem_address) -> temp_buffer
+pub fn par_process_proc_id_mem_address_to_temp_buffer_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    dest_tbs_pos: u32,
+    dest_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::ProcId, END_POS_PROC_ID),
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+        ],
+        &[(
+            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            if dest_proc_id_end_pos {
+                END_POS_PROC_ID
+            } else {
+                END_POS_MEM_ADDRESS
+            },
+        )],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(proc_id, temp_buffer) -> mem_address
+pub fn par_process_proc_id_temp_buffer_to_mem_address_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::ProcId, END_POS_PROC_ID),
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(mem_address, temp_buffer) -> temp_buffer
+pub fn par_process_mem_address_temp_buffer_to_temp_buffer_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    dest_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    dest_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(
+            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            if dest_proc_id_end_pos {
+                END_POS_PROC_ID
+            } else {
+                END_POS_MEM_ADDRESS
+            },
+        )],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(mem_address, temp_buffer) -> mem_address
+pub fn par_process_mem_address_temp_buffer_to_mem_address_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(temp_buffer, temp_buffer) -> temp_buffer
+pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    src2_tbs_pos: u32,
+    dest_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    src2_proc_id_end_pos: bool,
+    dest_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+            (
+                InfDataParam::TempBuffer(src2_tbs_pos as usize),
+                if src2_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(
+            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            if dest_proc_id_end_pos {
+                END_POS_PROC_ID
+            } else {
+                END_POS_MEM_ADDRESS
+            },
+        )],
+        FuncNNAdapter2::from(func),
+    )
+}
+
+// OP(temp_buffer, temp_buffer) -> mem_address
+pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    src_tbs_pos: u32,
+    src2_tbs_pos: u32,
+    src_proc_id_end_pos: bool,
+    src2_proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[
+            (
+                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                if src_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+            (
+                InfDataParam::TempBuffer(src2_tbs_pos as usize),
+                if src2_proc_id_end_pos {
+                    END_POS_PROC_ID
+                } else {
+                    END_POS_MEM_ADDRESS
+                },
+            ),
+        ],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter2::from(func),
+    )
+}
+
 // main routine to process infinite data (mem_address, proc_id and temp_buffer).
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
