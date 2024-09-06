@@ -1136,12 +1136,15 @@ fn main() {
         "xornn_process_infinite_data_test" => {
             // dummy test for testing par_process_infinite_data_stage
             let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
-            let src_params = args
-                .next()
-                .unwrap()
-                .split(',')
-                .map(|x| parse_infdataparam_elem(x).unwrap())
-                .collect::<Vec<_>>();
+            let src_params_str = args.next().unwrap();
+            let src_params = if !src_params_str.is_empty() {
+                src_params_str
+                    .split(',')
+                    .map(|x| parse_infdataparam_elem(x).unwrap())
+                    .collect::<Vec<_>>()
+            } else {
+                vec![]
+            };
             let dests = args
                 .next()
                 .unwrap()
