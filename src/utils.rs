@@ -1737,6 +1737,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     );
     // outputs start at same position as inputs
     let state_pos = src_len + dest_len;
+    assert_eq!(state_pos + func_outputs.bitnum(), total_state_bits);
     output.state = create_out_state(
         next_stage,
         state_vars
