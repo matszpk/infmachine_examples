@@ -1334,6 +1334,16 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
     )
 }
 
+macro_rules! test_println {
+    () => { println!(); };
+    ($($arg:tt)*) => { println!($($arg)*); };
+}
+
+// macro_rules! test_println {
+//     () => {};
+//     ($($arg:tt)*) => {};
+// }
+
 // TODO: Test par_process_infinite_data_stage by using detailed debug prints.
 // main routine to process infinite data (mem_address, proc_id and temp_buffer).
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
@@ -1404,6 +1414,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         .into_iter()
         .all(|(param, _)| *param != InfDataParam::ProcId));
 
+    test_println!("par_process_infinite_data_stage:");
+    test_println!("  SrcParams: {:?}", src_params);
+    test_println!("  Dests: {:?}", dests);
     // check usage of other sources
     let use_mem_address = src_params
         .into_iter()
@@ -1415,6 +1428,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let use_proc_id = src_params
         .into_iter()
         .any(|(param, _)| *param == InfDataParam::ProcId);
+    test_println!(
+        "  UseMemAddress: {}, UseWriteMemAdress: {}, UseProcId: {}",
+        use_mem_address,
+        use_write_mem_address,
+        use_proc_id
+    );
 
     let mut total_stages = 0;
     // store all end pos limiters
@@ -1428,12 +1447,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             if last_pos != pos {
                 total_stages += 1; // movement
                 total_stages += 2; // read stage and store stage
+                test_println!("  EndPos: Move to last position: {} {}", last_pos, pos);
             } else if first {
                 total_stages += 2; // read stage and store stage
             }
             first = false;
             last_pos = pos;
         }
+        test_println!(
+            "  EndPos: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
+            total_stages,
+            total_state_bits,
+            last_pos
+        );
     }
     // src params
     let mut read_state_bits = 0;
@@ -1443,6 +1469,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
+                    test_println!("  Read1: Move to last position: {} {}", last_pos, pos);
                 }
                 last_pos = pos;
                 read_state_bits += 1;
@@ -1450,6 +1477,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             InfDataParam::TempBuffer(pos) => {
                 if last_pos != *pos {
                     total_stages += 1; // movement stage
+                    test_println!("  Read2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
                 read_state_bits += dp_len;
@@ -1460,7 +1488,19 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         total_stages += 2; // read stage and store stage
     }
+    test_println!(
+        "  Read: TotalStages: {}, ReadStateBits: {}, LastPos: {}",
+        total_stages,
+        read_state_bits,
+        last_pos
+    );
     total_stages += 1; // process stage and store results
+    test_println!(
+        "  Process: TotalStages: {}, ReadStateBits: {}, LastPos: {}",
+        total_stages,
+        read_state_bits,
+        last_pos
+    );
     let mut write_state_bits = 0;
     for (param, _) in dests {
         match param {
@@ -1469,6 +1509,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
+                    test_println!("  Write1: Move to last position: {} {}", last_pos, pos);
                 }
                 last_pos = pos;
                 write_state_bits += 1;
@@ -1476,6 +1517,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             InfDataParam::TempBuffer(pos) => {
                 if last_pos != *pos {
                     total_stages += 1; // movement stage
+                    test_println!("  Write2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
                 write_state_bits += dp_len;
@@ -1486,6 +1528,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         total_stages += 1; // write stage
     }
+    test_println!(
+        "  Write: TotalStages: {}, WriteStateBits: {}, LastPos: {}",
+        total_stages,
+        write_state_bits,
+        last_pos
+    );
     // move to next data part
     total_stages += 1;
     // end_stage - stage where is end of algorithm - start moving to start.
@@ -1495,6 +1543,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // calculate total state bits
     let total_state_bits = total_state_bits + std::cmp::max(read_state_bits, write_state_bits);
     let total_stages = total_stages;
+    test_println!(
+        "  Write: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
+        total_stages,
+        total_state_bits,
+        last_pos
+    );
 
     // main routine to generate stages
     let state_start = output_state.bitnum();
@@ -1551,6 +1605,24 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         last_pos - pos
                     } as u64,
                 );
+                test_println!(
+                    "  GenEndPos: {} {} {}: Move to last position: {} {}: {} {}",
+                    i,
+                    end_pos,
+                    outputs.len(),
+                    last_pos,
+                    pos,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_BACKWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
                 outputs.push(output);
                 do_read = true;
             } else if first {
@@ -1567,6 +1639,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 );
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 output.dpr = true.into();
+                test_println!(
+                    "  GenEndPos {} {} {}: Read stage: {} {}",
+                    i,
+                    end_pos,
+                    outputs.len(),
+                    last_pos,
+                    pos
+                );
                 outputs.push(output);
                 // store stage
                 let mut output = output_base.clone();
@@ -1581,6 +1661,22 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         .map(|(x, (_, end_pos))| {
                             state_vars.bit(start + i + x) | input.dpval.bit(end_pos % dp_len)
                         }),
+                );
+                test_println!(
+                    "  GenEndPos {} {} {}: Write stage: {} {}: {:?}",
+                    i,
+                    end_pos,
+                    outputs.len(),
+                    last_pos,
+                    pos,
+                    list[i..]
+                        .into_iter()
+                        .take_while(|(_, end_pos)| {
+                            // while end_pos is same data part
+                            pos == (end_pos / dp_len)
+                        })
+                        .enumerate()
+                        .collect::<Vec<_>>()
                 );
                 let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
                     if x < start + i || x >= start + i + end_poses.len() {
@@ -1637,6 +1733,23 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         last_pos - pos
                     } as u64,
                 );
+                test_println!(
+                    "  GenRead {:?} {}: Move to last position: {} {}: {} {}",
+                    param,
+                    outputs.len(),
+                    last_pos,
+                    pos,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_BACKWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
                 outputs.push(output);
                 last_pos = pos;
             }
@@ -1664,6 +1777,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             DPMOVE_NOTHING
         }
         .into();
+        test_println!(
+            "  GenRead {:?} {}: Read stage {}: StatePos: {}, DPMove: {}",
+            param,
+            outputs.len(),
+            last_pos,
+            state_pos,
+            (!use_write_mem_address && *param == InfDataParam::MemAddress)
+                || *param == InfDataParam::ProcId
+        );
         outputs.push(output);
         // store stage
         let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
@@ -1684,6 +1806,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             new_state_vars,
             func_state.clone(),
         );
+        test_println!(
+            "  GenRead {:?} {}: Store stage {}: StatePos: {}, ParamLen: {}",
+            param,
+            outputs.len(),
+            last_pos,
+            state_pos,
+            param_len
+        );
         outputs.push(output);
         state_pos += param_len;
     }
@@ -1703,6 +1833,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 UDynVarSys::from_iter((0..param_len).map(|x| state_vars.bit(state_pos + x))),
                 UDynVarSys::from_n(0u8, param_len),
             ));
+            println!(
+                "  FuncInputs: {} {:?}: StatePos: {}, ParamLen: {}",
+                i, src_params, state_pos, param_len
+            );
             state_pos += param_len;
         }
         func_inputs
@@ -1719,6 +1853,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 dp_len
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
+            println!("  FuncOutputs: {:?}: ParamLen: {}", dests, param_len);
         }
         if read_state_bits > write_state_bits {
             // fix length of func output bits - fix if read state bits is longer
@@ -1734,6 +1869,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             .fold(BoolVarSys::from(true), |a, x| a.clone() & state_vars.bit(x)),
         UDynVarSys::from_n(end_stage, stage_type_len),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+    );
+    println!(
+        "  NextStege: {}..{}: EndStage: {}",
+        src_len,
+        src_len + dest_len,
+        end_stage
     );
     // outputs start at same position as inputs
     let state_pos = src_len + dest_len;
@@ -1784,6 +1925,24 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         last_pos - pos
                     } as u64,
                 );
+                test_println!(
+                    "  GenWrite {} {:?} {}: Move to last position: {} {}: {} {}",
+                    i,
+                    param,
+                    outputs.len(),
+                    last_pos,
+                    pos,
+                    if last_pos < pos {
+                        DPMOVE_FORWARD
+                    } else {
+                        DPMOVE_BACKWARD
+                    },
+                    if last_pos < pos {
+                        pos - last_pos
+                    } else {
+                        last_pos - pos
+                    } as u64,
+                );
                 outputs.push(output);
                 last_pos = pos;
             }
@@ -1799,6 +1958,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 );
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 output.dpr = true.into();
+                test_println!(
+                    "  GenWrite {:?} {}: Read stage: {}: StatePos: {}",
+                    param,
+                    outputs.len(),
+                    last_pos,
+                    state_pos,
+                );
                 outputs.push(output);
                 // write stage
                 let mut output = output_base.clone();
@@ -1821,6 +1987,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     }
                 }));
                 outputs.push(output);
+                test_println!(
+                    "  GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}",
+                    param,
+                    outputs.len(),
+                    last_pos,
+                    state_pos,
+                    src_len + i
+                );
                 state_pos += 1;
             }
             InfDataParam::MemAddress | InfDataParam::TempBuffer(_) => {
@@ -1846,6 +2020,15 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 output.dpval =
                     UDynVarSys::from_iter((0..dp_len).map(|x| state_vars.bit(state_pos + x)));
                 outputs.push(output);
+                test_println!(
+                    "  GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}, DPMove: {}",
+                    param,
+                    outputs.len(),
+                    last_pos,
+                    state_pos,
+                    src_len + i,
+                    *param == InfDataParam::MemAddress && use_write_mem_address,
+                );
                 state_pos += dp_len;
             }
             _ => {
@@ -1872,6 +2055,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         DPMOVE_FORWARD,
         ((temp_buffer_step as usize) - last_pos) as u64,
     );
+    test_println!("  GenToNext: {} {}", last_pos, outputs.len());
     outputs.push(output);
 
     // end phase move back
@@ -1894,6 +2078,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         DKIND_TEMP_BUFFER,
     );
     outputs.push(output);
+    test_println!("  MoveToStartTempBuffer");
     if use_mem_address {
         let (output, end_of_stage) = data_pos_to_start_stage(
             create_out_state(
@@ -1914,6 +2099,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             DKIND_MEM_ADDRESS,
         );
         outputs.push(output);
+        test_println!("  MoveToStartMemAddress");
         // this is end of stage
         end_of_stage_final = end_of_stage;
     }
@@ -1935,7 +2121,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         outputs.push(output);
         // this is end of stage
         end_of_stage_final = end_of_stage;
+        test_println!("  MoveToStartProcId");
     }
+    test_println!("  OutputsLen: {}", outputs.len());
     assert_eq!(total_stages, outputs.len());
     // prepare end bit
     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
