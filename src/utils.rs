@@ -1846,7 +1846,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             test_println!(
                 "  FuncInputs: {} {:?}: StatePos: {}, ParamLen: {}",
                 i,
-                src_params,
+                param,
                 state_pos,
                 param_len
             );
@@ -1866,7 +1866,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 dp_len
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
-            test_println!("  FuncOutputs: {:?}: ParamLen: {}", dests, param_len);
+            test_println!("  FuncOutputs: {:?}: ParamLen: {}", param, param_len);
         }
         if read_state_bits > write_state_bits {
             // fix length of func output bits - fix if read state bits is longer
