@@ -1441,13 +1441,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // end_pos
     let mut last_pos = 0;
     for list in [src_params, dests] {
+        test_println!("  EndPosList: {:?}", list);
         let mut first = true;
         for (_, end_pos) in list {
             let pos = *end_pos / dp_len;
             if last_pos != pos {
                 total_stages += 1; // movement
                 total_stages += 2; // read stage and store stage
-                test_println!("  EndPos: Move to last position: {} {}", last_pos, pos);
+                test_println!("    EndPos: Move to last position: {} {}", last_pos, pos);
             } else if first {
                 total_stages += 2; // read stage and store stage
             }
@@ -1455,7 +1456,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             last_pos = pos;
         }
         test_println!(
-            "  EndPos: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
+            "    EndPos: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
             total_stages,
             total_state_bits,
             last_pos
@@ -1469,7 +1470,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
-                    test_println!("  Read1: Move to last position: {} {}", last_pos, pos);
+                    test_println!("    Read1: Move to last position: {} {}", last_pos, pos);
                 }
                 last_pos = pos;
                 read_state_bits += 1;
@@ -1477,7 +1478,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             InfDataParam::TempBuffer(pos) => {
                 if last_pos != *pos {
                     total_stages += 1; // movement stage
-                    test_println!("  Read2: Move to last position: {} {}", last_pos, *pos);
+                    test_println!("    Read2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
                 read_state_bits += dp_len;
@@ -1509,7 +1510,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 let pos = *p / dp_len;
                 if last_pos != pos {
                     total_stages += 1; // movement stage
-                    test_println!("  Write1: Move to last position: {} {}", last_pos, pos);
+                    test_println!("    Write1: Move to last position: {} {}", last_pos, pos);
                 }
                 last_pos = pos;
                 write_state_bits += 1;
@@ -1517,7 +1518,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             InfDataParam::TempBuffer(pos) => {
                 if last_pos != *pos {
                     total_stages += 1; // movement stage
-                    test_println!("  Write2: Move to last position: {} {}", last_pos, *pos);
+                    test_println!("    Write2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
                 write_state_bits += dp_len;
@@ -1575,6 +1576,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let mut outputs = vec![];
     // read src_params and dests end pos
     for (start, list) in [(0, src_params), (src_len, dests)] {
+        test_println!("  EndPosList: {:?}", list);
         let mut first = true;
         for (i, (_, end_pos)) in list.into_iter().enumerate() {
             let pos = end_pos / dp_len;
@@ -1606,7 +1608,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     } as u64,
                 );
                 test_println!(
-                    "  GenEndPos: {} {} {}: Move to last position: {} {}: {} {}",
+                    "    GenEndPos: {} {} {}: Move to last position: {} {}: {} {}",
                     i,
                     end_pos,
                     outputs.len(),
@@ -1640,7 +1642,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 output.dpr = true.into();
                 test_println!(
-                    "  GenEndPos {} {} {}: Read stage: {} {}",
+                    "    GenEndPos {} {} {}: Read stage: {} {}",
                     i,
                     end_pos,
                     outputs.len(),
@@ -1663,7 +1665,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         }),
                 );
                 test_println!(
-                    "  GenEndPos {} {} {}: Write stage: {} {}: {:?}",
+                    "    GenEndPos {} {} {}: Write stage: {} {}: {:?}",
                     i,
                     end_pos,
                     outputs.len(),
@@ -1700,6 +1702,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     }
     // read params - read phase
     let mut state_pos = src_len + dest_len;
+    test_println!("  GenRead");
     for (param, _) in src_params {
         let pos = match param {
             InfDataParam::EndPos(p) => Some(*p / dp_len),
@@ -1734,7 +1737,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     } as u64,
                 );
                 test_println!(
-                    "  GenRead {:?} {}: Move to last position: {} {}: {} {}",
+                    "    GenRead {:?} {}: Move to last position: {} {}: {} {}",
                     param,
                     outputs.len(),
                     last_pos,
@@ -1778,7 +1781,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         .into();
         test_println!(
-            "  GenRead {:?} {}: Read stage {}: StatePos: {}, DPMove: {}",
+            "    GenRead {:?} {}: Read stage {}: StatePos: {}, DPMove: {}",
             param,
             outputs.len(),
             last_pos,
@@ -1807,7 +1810,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             func_state.clone(),
         );
         test_println!(
-            "  GenRead {:?} {}: Store stage {}: StatePos: {}, ParamLen: {}",
+            "    GenRead {:?} {}: Store stage {}: StatePos: {}, ParamLen: {}",
             param,
             outputs.len(),
             last_pos,
@@ -1891,6 +1894,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 
     // start from same position in states as read phase.
     let mut state_pos = src_len + dest_len;
+    test_println!("  GenWrite");
     // write stages - write phase
     for (i, (param, _)) in dests.into_iter().enumerate() {
         let pos = match param {
@@ -1926,7 +1930,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     } as u64,
                 );
                 test_println!(
-                    "  GenWrite {} {:?} {}: Move to last position: {} {}: {} {}",
+                    "    GenWrite {} {:?} {}: Move to last position: {} {}: {} {}",
                     i,
                     param,
                     outputs.len(),
@@ -1959,7 +1963,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 output.dpr = true.into();
                 test_println!(
-                    "  GenWrite {:?} {}: Read stage: {}: StatePos: {}",
+                    "    GenWrite {:?} {}: Read stage: {}: StatePos: {}",
                     param,
                     outputs.len(),
                     last_pos,
@@ -1988,7 +1992,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 }));
                 outputs.push(output);
                 test_println!(
-                    "  GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}",
+                    "    GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}",
                     param,
                     outputs.len(),
                     last_pos,
@@ -2021,7 +2025,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     UDynVarSys::from_iter((0..dp_len).map(|x| state_vars.bit(state_pos + x)));
                 outputs.push(output);
                 test_println!(
-                    "  GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}, DPMove: {}",
+                    "    GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}, DPMove: {}",
                     param,
                     outputs.len(),
                     last_pos,
