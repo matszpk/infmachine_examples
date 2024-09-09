@@ -1336,7 +1336,7 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
 
 macro_rules! test_println {
     () => { println!(); };
-    ($($arg:tt)*) => { println!($($arg)*); };
+    ($($arg:tt)*) => { eprintln!($($arg)*); };
 }
 
 // macro_rules! test_println {
