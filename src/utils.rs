@@ -1649,11 +1649,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 output.dpr = true.into();
                 test_println!(
-                    "    GenEndPos {} {} {}: Read stage: {} {}",
+                    "    GenEndPos {} {} {}: Read stage: {}",
                     i,
                     end_pos,
                     outputs.len(),
-                    last_pos,
                     pos
                 );
                 outputs.push(output);
@@ -1672,11 +1671,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         }),
                 );
                 test_println!(
-                    "    GenEndPos {} {} {}: Write stage: {} {}: {:?}",
+                    "    GenEndPos {} {} {}: Write stage: {}: {:?}",
                     i,
                     end_pos,
                     outputs.len(),
-                    last_pos,
                     pos,
                     list[i..]
                         .into_iter()
