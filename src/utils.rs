@@ -1551,7 +1551,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     let total_state_bits = total_state_bits + std::cmp::max(read_state_bits, write_state_bits);
     let total_stages = total_stages;
     test_println!(
-        "  Write: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
+        "  End: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
         total_stages,
         total_state_bits,
         last_pos
