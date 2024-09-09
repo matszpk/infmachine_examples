@@ -1844,7 +1844,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             ));
             test_println!(
                 "  FuncInputs: {} {:?}: StatePos: {}, ParamLen: {}",
-                i, src_params, state_pos, param_len
+                i,
+                src_params,
+                state_pos,
+                param_len
             );
             state_pos += param_len;
         }
@@ -1880,7 +1883,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
     );
     test_println!(
-        "  NextStege: {}..{}: EndStage: {}",
+        "  NextStage: {}..{}: EndStage: {}",
         src_len,
         src_len + dest_len,
         end_stage
