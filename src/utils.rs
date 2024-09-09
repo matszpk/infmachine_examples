@@ -1491,15 +1491,15 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
     )
 }
 
-macro_rules! test_println {
-    () => { eprintln!(); };
-    ($($arg:tt)*) => { eprintln!($($arg)*); };
-}
-
 // macro_rules! test_println {
-//     () => {};
-//     ($($arg:tt)*) => {};
+//     () => { eprintln!(); };
+//     ($($arg:tt)*) => { eprintln!($($arg)*); };
 // }
+
+macro_rules! test_println {
+    () => {};
+    ($($arg:tt)*) => {};
+}
 
 // main routine to process infinite data (mem_address, proc_id and temp_buffer).
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
