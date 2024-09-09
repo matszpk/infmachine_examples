@@ -1462,7 +1462,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             last_pos
         );
     }
-    test_println!("  ReadPhase: {:?}", src_params);
+    test_println!("  ReadPhase");
     // src params
     let mut read_state_bits = 0;
     for (param, _) in src_params {
