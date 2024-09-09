@@ -1344,7 +1344,6 @@ macro_rules! test_println {
 //     ($($arg:tt)*) => {};
 // }
 
-// TODO: Test par_process_infinite_data_stage by using detailed debug prints.
 // main routine to process infinite data (mem_address, proc_id and temp_buffer).
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
