@@ -1632,6 +1632,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     } as u64,
                 );
                 outputs.push(output);
+                last_pos = pos;
                 do_read = true;
             } else if first {
                 do_read = true;
@@ -1702,7 +1703,6 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 );
                 outputs.push(output);
             }
-            last_pos = pos;
             first = false;
         }
     }
