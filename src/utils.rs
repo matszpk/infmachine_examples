@@ -1537,6 +1537,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     );
     // move to next data part
     total_stages += 1;
+    test_println!(
+        "  EndStage: TotalStages: {}, WriteStateBits: {}, LastPos: {}",
+        total_stages,
+        write_state_bits,
+        last_pos
+    );
     // end_stage - stage where is end of algorithm - start moving to start.
     let end_stage = total_stages;
     // add move back stages
