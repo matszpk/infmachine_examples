@@ -1456,12 +1456,13 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             last_pos = pos;
         }
         test_println!(
-            "    EndPos: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
+            "  EndPos: TotalStages: {}, TotalStateBits: {}, LastPos: {}",
             total_stages,
             total_state_bits,
             last_pos
         );
     }
+    test_println!("  ReadPhase: {:?}", src_params);
     // src params
     let mut read_state_bits = 0;
     for (param, _) in src_params {
