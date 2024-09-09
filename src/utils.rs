@@ -4,6 +4,7 @@ use gategen::intvar::*;
 use infmachine_gen::*;
 
 use std::fmt::Debug;
+use std::ops::{BitAnd, BitOr, BitXor};
 
 // Utilities for machine.
 // General utitities for machine creation. Utilities designed to be generic and usable
@@ -674,6 +675,72 @@ impl Function1 for Copy1Func {
     }
 }
 
+// Bitwise operations
+
+macro_rules! macro_bit1func {
+    ($name:ident,$op:ident) => {
+        pub struct $name {
+            inout_len: usize,
+            value: UDynVarSys,
+        }
+
+        impl $name {
+            pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+                Self { inout_len, value }
+            }
+            pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
+                Self {
+                    inout_len,
+                    value: if value != 0 {
+                        UDynVarSys::from_n(value, (u64::BITS - value.leading_zeros()) as usize)
+                    } else {
+                        UDynVarSys::from_n(value, 1)
+                    },
+                }
+            }
+        }
+
+        impl Function1 for $name {
+            fn state_len(&self) -> usize {
+                calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1)
+            }
+            fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+                let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
+                let state_len = self.state_len();
+                // get current part of value to add to input.
+                let index = input_state.clone().subvalue(0, state_len);
+                let arg2 = dynint_table_partial(
+                    index.clone(),
+                    (0..max_state_count).map(|i| {
+                        UDynVarSys::try_from_n(
+                            self.value.subvalue(
+                                i * self.inout_len,
+                                std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
+                                    - i * self.inout_len,
+                            ),
+                            self.inout_len,
+                        )
+                        .unwrap()
+                    }),
+                    UDynVarSys::from_n(0u8, self.inout_len),
+                );
+                let result = i0.$op(arg2);
+                let next_state = dynint_ite(
+                    (&index).equal(max_state_count),
+                    UDynVarSys::from_n(max_state_count, state_len),
+                    &index + 1u8,
+                );
+                (next_state, result)
+            }
+        }
+    };
+}
+
+macro_bit1func!(And1Func, bitand);
+macro_bit1func!(Or1Func, bitor);
+macro_bit1func!(Xor1Func, bitxor);
+
+// Add1Func
 pub struct Add1Func {
     inout_len: usize,
     value: UDynVarSys,
@@ -731,6 +798,97 @@ impl Function1 for Add1Func {
     }
 }
 
+// Bit ops
+
+macro_rules! macro_bit2func {
+    ($name:ident, $op:ident) => {
+        pub struct $name {}
+
+        impl $name {
+            pub fn new() -> Self {
+                Self {}
+            }
+        }
+
+        impl Function2 for $name {
+            fn state_len(&self) -> usize {
+                0
+            }
+            fn output(
+                &self,
+                _: UDynVarSys,
+                i0: UDynVarSys,
+                i1: UDynVarSys,
+            ) -> (UDynVarSys, UDynVarSys) {
+                // get current part of value to add to input.
+                let result = i0.$op(i1);
+                (UDynVarSys::var(0), result)
+            }
+        }
+    };
+}
+
+macro_bit2func!(And2Func, bitand);
+macro_bit2func!(Or2Func, bitor);
+macro_bit2func!(Xor2Func, bitxor);
+
+// Add2Func
+pub struct Add2Func {}
+
+impl Add2Func {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Function2 for Add2Func {
+    fn state_len(&self) -> usize {
+        1
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+        i1: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys) {
+        // get current part of value to add to input.
+        let old_carry = input_state.bit(0);
+        let (result, carry) = i0.addc_with_carry(&i1, &old_carry);
+        let next_state = UDynVarSys::filled(1, carry);
+        (next_state, result)
+    }
+}
+
+// Sub2Func
+pub struct Sub2Func {}
+
+impl Sub2Func {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Function2 for Sub2Func {
+    fn state_len(&self) -> usize {
+        1
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+        i1: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys) {
+        // get current part of value to sub to input.
+        let old_neg_carry = !input_state.bit(0);
+        // start with carry=1 and negate argument i1.
+        let (result, carry) = i0.addc_with_carry(&!i1, &old_neg_carry);
+        let next_state = UDynVarSys::filled(1, carry);
+        (next_state, result)
+    }
+}
+
+//
+
 pub struct XorNNFuncSample {
     inout_len: usize,
     input_num: usize,
@@ -746,7 +904,6 @@ impl XorNNFuncSample {
         }
     }
 }
-
 impl FunctionNN for XorNNFuncSample {
     fn state_len(&self) -> usize {
         0
