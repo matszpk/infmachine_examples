@@ -1842,7 +1842,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 UDynVarSys::from_iter((0..param_len).map(|x| state_vars.bit(state_pos + x))),
                 UDynVarSys::from_n(0u8, param_len),
             ));
-            println!(
+            test_println!(
                 "  FuncInputs: {} {:?}: StatePos: {}, ParamLen: {}",
                 i, src_params, state_pos, param_len
             );
@@ -1862,7 +1862,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 dp_len
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
-            println!("  FuncOutputs: {:?}: ParamLen: {}", dests, param_len);
+            test_println!("  FuncOutputs: {:?}: ParamLen: {}", dests, param_len);
         }
         if read_state_bits > write_state_bits {
             // fix length of func output bits - fix if read state bits is longer
@@ -1879,7 +1879,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         UDynVarSys::from_n(end_stage, stage_type_len),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
     );
-    println!(
+    test_println!(
         "  NextStege: {}..{}: EndStage: {}",
         src_len,
         src_len + dest_len,
