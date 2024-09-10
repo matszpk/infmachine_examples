@@ -744,11 +744,16 @@ macro_bit1func!(Xor1Func, bitxor);
 pub struct Add1Func {
     inout_len: usize,
     value: UDynVarSys,
+    sign: BoolVarSys,
 }
 
 impl Add1Func {
     pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
-        Self { inout_len, value }
+        Self {
+            inout_len,
+            value,
+            sign: false.into(),
+        }
     }
     pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
         Self {
@@ -758,6 +763,7 @@ impl Add1Func {
             } else {
                 UDynVarSys::from_n(value, 1)
             },
+            sign: false.into(),
         }
     }
 }
@@ -775,15 +781,20 @@ impl Function1 for Add1Func {
         let adder = dynint_table_partial(
             index.clone(),
             (0..max_state_count).map(|i| {
-                UDynVarSys::try_from_n(
-                    self.value.subvalue(
-                        i * self.inout_len,
-                        std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
-                            - i * self.inout_len,
-                    ),
-                    self.inout_len,
-                )
-                .unwrap()
+                let part = self.value.subvalue(
+                    i * self.inout_len,
+                    std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
+                        - i * self.inout_len,
+                );
+                let part_len = part.bitnum();
+                if part_len < self.inout_len {
+                    part.concat(UDynVarSys::filled(
+                        self.inout_len - part_len,
+                        self.sign.clone(),
+                    ))
+                } else {
+                    part
+                }
             }),
             UDynVarSys::from_n(0u8, self.inout_len),
         );
