@@ -882,7 +882,7 @@ impl Function2 for Sub2Func {
         let old_neg_carry = !input_state.bit(0);
         // start with carry=1 and negate argument i1.
         let (result, carry) = i0.addc_with_carry(&!i1, &old_neg_carry);
-        let next_state = UDynVarSys::filled(1, carry);
+        let next_state = UDynVarSys::filled(1, !carry);
         (next_state, result)
     }
 }

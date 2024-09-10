@@ -1276,6 +1276,31 @@ fn main() {
                 .unwrap())
             );
         }
+        "xor_sub_temp_buffer_2_to_mem_address" => {
+            let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+            let tbs_pos_1: u32 = args.next().unwrap().parse().unwrap();
+            let tbs_pos_2: u32 = args.next().unwrap().parse().unwrap();
+            let value1: u64 = args.next().unwrap().parse().unwrap();
+            let value2: u64 = args.next().unwrap().parse().unwrap();
+            assert_ne!(temp_buffer_step, 0);
+            print!(
+                "{}",
+                callsys(|| process_3_temp_buffer_2_to_mem_address(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    temp_buffer_step,
+                    tbs_pos_1,
+                    tbs_pos_2,
+                    Xor1Func::new_from_u64(data_part_len as usize, value1),
+                    Xor1Func::new_from_u64(data_part_len as usize, value2),
+                    Sub2Func::new(),
+                )
+                .unwrap())
+            );
+        }
         _ => {
             panic!("Unknown example");
         }
