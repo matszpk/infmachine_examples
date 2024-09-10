@@ -835,6 +835,101 @@ impl Function1 for Add1Func {
     }
 }
 
+// Sub1Func
+pub struct Sub1Func {
+    inout_len: usize,
+    value: UDynVarSys,
+    sign: BoolVarSys,
+}
+
+impl Sub1Func {
+    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+        Self {
+            inout_len,
+            value,
+            sign: false.into(),
+        }
+    }
+    pub fn new_signed(inout_len: usize, value: IDynVarSys) -> Self {
+        let sign = value.bit(value.bitnum() - 1);
+        Self {
+            inout_len,
+            value: value.as_unsigned(),
+            sign,
+        }
+    }
+    pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
+        Self {
+            inout_len,
+            value: if value != 0 {
+                UDynVarSys::from_n(value, (u64::BITS - value.leading_zeros()) as usize)
+            } else {
+                UDynVarSys::from_n(value, 1)
+            },
+            sign: false.into(),
+        }
+    }
+    pub fn new_from_i64(inout_len: usize, value: i64) -> Self {
+        let abs_value = value.abs();
+        Self {
+            inout_len,
+            value: if abs_value != 0 {
+                let bits = (u64::BITS - abs_value.leading_zeros()) as usize;
+                let mask = if bits < 64 {
+                    (1u64 << bits) - 1
+                } else {
+                    u64::MAX
+                };
+                UDynVarSys::from_n((value as u64) & mask, bits)
+            } else {
+                UDynVarSys::from_n(value as u64, 1)
+            },
+            sign: (value < 0).into(),
+        }
+    }
+}
+
+impl Function1 for Sub1Func {
+    fn state_len(&self) -> usize {
+        calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1) + 1
+    }
+    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
+        let state_len = self.state_len();
+        // get current part of value to add to input.
+        let index = input_state.clone().subvalue(0, state_len - 1);
+        let old_carry = input_state.bit(state_len - 1);
+        let adder = dynint_table_partial(
+            index.clone(),
+            (0..max_state_count).map(|i| {
+                let part = self.value.subvalue(
+                    i * self.inout_len,
+                    std::cmp::min((i + 1) * self.inout_len, self.value.bitnum())
+                        - i * self.inout_len,
+                );
+                let part_len = part.bitnum();
+                if part_len < self.inout_len {
+                    part.concat(UDynVarSys::filled(
+                        self.inout_len - part_len,
+                        self.sign.clone(),
+                    ))
+                } else {
+                    part
+                }
+            }),
+            UDynVarSys::from_n(0u8, self.inout_len),
+        );
+        let (result, carry) = i0.addc_with_carry(&!adder, &!old_carry);
+        let next_state = dynint_ite(
+            (&index).equal(max_state_count),
+            UDynVarSys::from_n(max_state_count, state_len - 1),
+            &index + 1u8,
+        )
+        .concat(UDynVarSys::filled(1, !carry));
+        (next_state, result)
+    }
+}
+
 // Bit ops
 
 macro_rules! macro_bit2func {
