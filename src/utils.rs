@@ -822,7 +822,7 @@ impl Function1 for Add1Func {
                     part
                 }
             }),
-            UDynVarSys::from_n(0u8, self.inout_len),
+            UDynVarSys::filled(self.inout_len, self.sign.clone()),
         );
         let (result, carry) = i0.addc_with_carry(&adder, &old_carry);
         let next_state = dynint_ite(
@@ -917,7 +917,7 @@ impl Function1 for Sub1Func {
                     part
                 }
             }),
-            UDynVarSys::from_n(0u8, self.inout_len),
+            UDynVarSys::filled(self.inout_len, self.sign.clone()),
         );
         let (result, carry) = i0.addc_with_carry(&!adder, &!old_carry);
         let next_state = dynint_ite(
