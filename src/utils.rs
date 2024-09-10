@@ -755,6 +755,14 @@ impl Add1Func {
             sign: false.into(),
         }
     }
+    pub fn new_signed(inout_len: usize, value: IDynVarSys) -> Self {
+        let sign = value.bit(value.bitnum() - 1);
+        Self {
+            inout_len,
+            value: value.as_unsigned(),
+            sign,
+        }
+    }
     pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
         Self {
             inout_len,
@@ -764,6 +772,24 @@ impl Add1Func {
                 UDynVarSys::from_n(value, 1)
             },
             sign: false.into(),
+        }
+    }
+    pub fn new_from_i64(inout_len: usize, value: i64) -> Self {
+        let abs_value = value.abs();
+        Self {
+            inout_len,
+            value: if abs_value != 0 {
+                let bits = (u64::BITS - abs_value.leading_zeros()) as usize;
+                let mask = if bits < 64 {
+                    (1u64 << bits) - 1
+                } else {
+                    u64::MAX
+                };
+                UDynVarSys::from_n((value as u64) & mask, bits)
+            } else {
+                UDynVarSys::from_n(value as u64, 1)
+            },
+            sign: (value < 0).into(),
         }
     }
 }
