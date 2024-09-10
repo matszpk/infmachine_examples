@@ -852,7 +852,7 @@ fn process_3_temp_buffer_2_to_mem_address(
 
 //
 
-fn parse_infdataparam_elem(s: &str) -> Result<(InfDataParam, usize), String> {
+fn parse_infdataparam_elem(s: &str) -> Result<(InfDataParam, u32), String> {
     // InfDataParam formats: "m" - mem_address, "p" - proc_id, "t4" - temp buffer pos 4,
     // "e7" - end pos index 7.
     // elem format: {InfDataParam}:end_pos. example: "t7:1"
@@ -899,8 +899,8 @@ fn gen_process_infinite_data_test(
     proc_num: u64,
     mem_size: u64,
     temp_buffer_step: u32,
-    src_params: &[(InfDataParam, usize)],
-    dests: &[(InfDataParam, usize)],
+    src_params: &[(InfDataParam, u32)],
+    dests: &[(InfDataParam, u32)],
     func: impl FunctionNN,
 ) -> Result<String, toml::ser::Error> {
     let config = InfParInterfaceConfig {

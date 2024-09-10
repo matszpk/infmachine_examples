@@ -514,13 +514,13 @@ pub fn init_machine_end_pos_stage(
 pub enum InfDataParam {
     MemAddress,
     ProcId,
-    TempBuffer(usize),
-    EndPos(usize),
+    TempBuffer(u32),
+    EndPos(u32),
 }
 
 // define default end position markers
-pub const END_POS_MEM_ADDRESS: usize = 0;
-pub const END_POS_PROC_ID: usize = 1;
+pub const END_POS_MEM_ADDRESS: u32 = 0;
+pub const END_POS_PROC_ID: u32 = 1;
 
 // functions
 
@@ -976,14 +976,6 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    // par_process_proc_id_to_temp_buffer_stage(
-    //     output_state,
-    //     next_state,
-    //     input,
-    //     temp_buffer_step,
-    //     temp_buffer_step_pos,
-    //     Copy1Func::new(),
-    // )
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -991,7 +983,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
         temp_buffer_step,
         &[(InfDataParam::ProcId, END_POS_PROC_ID)],
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_PROC_ID,
         )],
         FuncNNAdapter1::from(Copy1Func::new()),
@@ -1033,7 +1025,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
         input,
         temp_buffer_step,
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_MEM_ADDRESS,
         )],
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
@@ -1057,7 +1049,7 @@ pub fn par_copy_mem_address_to_temp_buffer_stage(
         temp_buffer_step,
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_MEM_ADDRESS,
         )],
         FuncNNAdapter1::from(Copy1Func::new()),
@@ -1086,8 +1078,8 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
         next_state,
         input,
         temp_buffer_step,
-        &[(InfDataParam::TempBuffer(tbs_src_pos as usize), end_pos)],
-        &[(InfDataParam::TempBuffer(tbs_dest_pos as usize), end_pos)],
+        &[(InfDataParam::TempBuffer(tbs_src_pos), end_pos)],
+        &[(InfDataParam::TempBuffer(tbs_dest_pos), end_pos)],
         FuncNNAdapter1::from(Copy1Func::new()),
     )
 }
@@ -1111,7 +1103,7 @@ pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
         temp_buffer_step,
         &[(InfDataParam::ProcId, END_POS_PROC_ID)],
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_PROC_ID,
         )],
         FuncNNAdapter1::from(func),
@@ -1155,7 +1147,7 @@ pub fn par_process_temp_buffer_to_mem_address_stage<F: Function1>(
         input,
         temp_buffer_step,
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_MEM_ADDRESS,
         )],
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
@@ -1180,7 +1172,7 @@ pub fn par_process_mem_address_to_temp_buffer_stage<F: Function1>(
         temp_buffer_step,
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
         &[(
-            InfDataParam::TempBuffer(temp_buffer_step_pos as usize),
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
             END_POS_MEM_ADDRESS,
         )],
         FuncNNAdapter1::from(func),
@@ -1207,7 +1199,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
         input,
         temp_buffer_step,
         &[(
-            InfDataParam::TempBuffer(tbs_src_pos as usize),
+            InfDataParam::TempBuffer(tbs_src_pos),
             if src_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1215,7 +1207,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
             },
         )],
         &[(
-            InfDataParam::TempBuffer(tbs_dest_pos as usize),
+            InfDataParam::TempBuffer(tbs_dest_pos),
             if dest_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1264,7 +1256,7 @@ pub fn par_process_proc_id_temp_buffer_to_temp_buffer_stage<F: Function2>(
         &[
             (InfDataParam::ProcId, END_POS_PROC_ID),
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1273,7 +1265,7 @@ pub fn par_process_proc_id_temp_buffer_to_temp_buffer_stage<F: Function2>(
             ),
         ],
         &[(
-            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            InfDataParam::TempBuffer(dest_tbs_pos),
             if dest_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1326,7 +1318,7 @@ pub fn par_process_proc_id_mem_address_to_temp_buffer_stage<F: Function2>(
             (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
         ],
         &[(
-            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            InfDataParam::TempBuffer(dest_tbs_pos),
             if dest_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1355,7 +1347,7 @@ pub fn par_process_proc_id_temp_buffer_to_mem_address_stage<F: Function2>(
         &[
             (InfDataParam::ProcId, END_POS_PROC_ID),
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1388,7 +1380,7 @@ pub fn par_process_mem_address_temp_buffer_to_temp_buffer_stage<F: Function2>(
         &[
             (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1397,7 +1389,7 @@ pub fn par_process_mem_address_temp_buffer_to_temp_buffer_stage<F: Function2>(
             ),
         ],
         &[(
-            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            InfDataParam::TempBuffer(dest_tbs_pos),
             if dest_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1426,7 +1418,7 @@ pub fn par_process_mem_address_temp_buffer_to_mem_address_stage<F: Function2>(
         &[
             (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1460,7 +1452,7 @@ pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
         temp_buffer_step,
         &[
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1468,7 +1460,7 @@ pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
                 },
             ),
             (
-                InfDataParam::TempBuffer(src2_tbs_pos as usize),
+                InfDataParam::TempBuffer(src2_tbs_pos),
                 if src2_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1477,7 +1469,7 @@ pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
             ),
         ],
         &[(
-            InfDataParam::TempBuffer(dest_tbs_pos as usize),
+            InfDataParam::TempBuffer(dest_tbs_pos),
             if dest_proc_id_end_pos {
                 END_POS_PROC_ID
             } else {
@@ -1507,7 +1499,7 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
         temp_buffer_step,
         &[
             (
-                InfDataParam::TempBuffer(src_tbs_pos as usize),
+                InfDataParam::TempBuffer(src_tbs_pos),
                 if src_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1515,7 +1507,7 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
                 },
             ),
             (
-                InfDataParam::TempBuffer(src2_tbs_pos as usize),
+                InfDataParam::TempBuffer(src2_tbs_pos),
                 if src2_proc_id_end_pos {
                     END_POS_PROC_ID
                 } else {
@@ -1544,8 +1536,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
-    src_params: &[(InfDataParam, usize)],
-    dests: &[(InfDataParam, usize)],
+    src_params: &[(InfDataParam, u32)],
+    dests: &[(InfDataParam, u32)],
     func: F,
 ) -> (InfParOutputSys, BoolVarSys) {
     let src_len = src_params.len();
@@ -1554,16 +1546,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     assert_eq!(func.input_num(), src_len);
     assert_eq!(func.output_num(), dest_len);
     let config = input.config();
-    let dp_len = config.data_part_len as usize;
+    let dp_len = config.data_part_len;
     // src_params can be empty (no input for functions)
     assert!(!dests.is_empty());
     for (data_param, end_pos) in src_params.iter().chain(dests.iter()) {
         let good = match data_param {
-            InfDataParam::TempBuffer(pos) => *pos < temp_buffer_step as usize,
-            InfDataParam::EndPos(idx) => *idx < dp_len * (temp_buffer_step as usize),
+            InfDataParam::TempBuffer(pos) => *pos < temp_buffer_step,
+            InfDataParam::EndPos(idx) => *idx < dp_len * temp_buffer_step,
             _ => true,
         };
-        assert!(good && *end_pos < dp_len * (temp_buffer_step as usize));
+        assert!(good && *end_pos < dp_len * temp_buffer_step);
     }
     // words where is end position markers
     let end_pos_words = {
@@ -1675,10 +1667,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     test_println!("    Read2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
-                read_state_bits += dp_len;
+                read_state_bits += dp_len as usize;
             }
             _ => {
-                read_state_bits += dp_len;
+                read_state_bits += dp_len as usize;
             }
         }
         total_stages += 2; // read stage and store stage
@@ -1715,10 +1707,10 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     test_println!("    Write2: Move to last position: {} {}", last_pos, *pos);
                 }
                 last_pos = *pos;
-                write_state_bits += dp_len;
+                write_state_bits += dp_len as usize;
             }
             _ => {
-                write_state_bits += dp_len;
+                write_state_bits += dp_len as usize;
             }
         }
         total_stages += 1; // write stage
@@ -1861,7 +1853,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                         })
                         .enumerate()
                         .map(|(x, (_, end_pos))| {
-                            state_vars.bit(start + i + x) | input.dpval.bit(end_pos % dp_len)
+                            state_vars.bit(start + i + x)
+                                | input.dpval.bit((end_pos % dp_len) as usize)
                         }),
                 );
                 test_println!(
@@ -1992,7 +1985,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
             1
         } else {
-            dp_len
+            dp_len as usize
         };
         let mut output = output_base.clone();
         let new_state_vars = UDynVarSys::from_iter((0..total_state_bits).map(|x| {
@@ -2026,7 +2019,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
                 1
             } else {
-                dp_len
+                dp_len as usize
             };
             func_inputs.push(dynint_ite(
                 // use src end_pos to filter function inputs (if 1 then zeroing)
@@ -2054,7 +2047,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             let param_len = if matches!(*param, InfDataParam::EndPos(_)) {
                 1
             } else {
-                dp_len
+                dp_len as usize
             };
             func_output_bits.extend((0..param_len).map(|x| outval.bit(x)));
             test_println!("  FuncOutputs: {:?}: ParamLen: {}", param, param_len);
@@ -2181,8 +2174,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                 output.dkind = DKIND_TEMP_BUFFER.into();
                 // use dest end pos to write
                 output.dpw = !state_vars.bit(src_len + i);
-                let bit = p % dp_len;
-                output.dpval = UDynVarSys::from_iter((0..dp_len).map(|x| {
+                let bit = (p % dp_len) as usize;
+                output.dpval = UDynVarSys::from_iter((0..dp_len as usize).map(|x| {
                     if bit == x {
                         // new value
                         state_vars.bit(state_pos)
@@ -2222,8 +2215,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     // move forward mem address if writing
                     output.dpmove = DPMOVE_FORWARD.into();
                 }
-                output.dpval =
-                    UDynVarSys::from_iter((0..dp_len).map(|x| state_vars.bit(state_pos + x)));
+                output.dpval = UDynVarSys::from_iter(
+                    (0..dp_len as usize).map(|x| state_vars.bit(state_pos + x)),
+                );
                 outputs.push(output);
                 test_println!(
                     "    GenWrite {:?} {}: Write stage: {}: StatePos: {}, DPW: {}, DPMove: {}",
@@ -2234,7 +2228,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
                     src_len + i,
                     *param == InfDataParam::MemAddress && use_write_mem_address,
                 );
-                state_pos += dp_len;
+                state_pos += dp_len as usize;
             }
             _ => {
                 panic!("Unexpected!");
@@ -2258,7 +2252,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
-        ((temp_buffer_step as usize) - last_pos) as u64,
+        (temp_buffer_step - last_pos) as u64,
     );
     test_println!("  GenToNext: {} {}", last_pos, outputs.len());
     outputs.push(output);
