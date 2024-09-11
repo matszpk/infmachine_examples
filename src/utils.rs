@@ -951,7 +951,7 @@ impl Function1 for Shl1Func {
         if self.shift <= self.inout_len {
             (
                 i0.clone().subvalue(self.inout_len - self.shift, self.shift),
-                input_state.concat(i0.subvalue(0, self.shift)),
+                input_state.concat(i0.subvalue(0, self.inout_len - self.shift)),
             )
         } else {
             (
