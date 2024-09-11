@@ -1029,6 +1029,45 @@ impl Function1 for Shl1Func {
     }
 }
 
+// Mul1Func
+pub struct MulAdd1Func {
+    mul: Mul1Func,
+    add: Add1Func,
+}
+
+impl MulAdd1Func {
+    pub fn new(inout_len: usize, mul_val: UDynVarSys, add_val: UDynVarSys) -> Self {
+        Self {
+            mul: Mul1Func::new(inout_len, mul_val),
+            add: Add1Func::new(inout_len, add_val),
+        }
+    }
+    pub fn new_from_u64(inout_len: usize, mul_val: u64, add_val: u64) -> Self {
+        Self {
+            mul: Mul1Func::new_from_u64(inout_len, mul_val),
+            add: Add1Func::new_from_u64(inout_len, add_val),
+        }
+    }
+}
+
+impl Function1 for MulAdd1Func {
+    fn state_len(&self) -> usize {
+        self.mul.state_len() + self.add.state_len()
+    }
+    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        let (mul_next_state, mul_result) = self
+            .mul
+            .output(input_state.clone().subvalue(0, self.mul.state_len()), i0);
+        let (add_next_state, add_result) = self.add.output(
+            input_state
+                .clone()
+                .subvalue(self.mul.state_len(), self.add.state_len()),
+            mul_result,
+        );
+        (mul_next_state.concat(add_next_state), add_result)
+    }
+}
+
 // functions 2: func(arg1, arg2) = dest
 // Bit ops
 
