@@ -960,14 +960,13 @@ impl Function1 for Mul1Func {
     fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
         let value_len = self.value.bitnum();
         let part_num = (value_len + self.inout_len - 1) / self.inout_len;
-        let last_len = value_len % self.inout_len;
         let mut mults = (0..part_num + 1)
             .map(|i| {
-                if i == part_num {
-                    UDynVarSys::filled(last_len, BoolVarSys::from(false))
-                } else {
-                    UDynVarSys::from_n(0u8, self.inout_len)
-                }
+                let part_len = std::cmp::min(
+                    self.inout_len,
+                    self.inout_len + value_len - i * self.inout_len,
+                );
+                UDynVarSys::from_n(0u8, part_len)
             })
             .collect::<Vec<_>>();
         // make multiply
