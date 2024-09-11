@@ -2611,10 +2611,12 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 //     type StageType = U4VarSys;
 //     extend_output_state(state_start, StageType::BITS + 1 + cell_len, input);
 //     // Repeat loop by proc_len:
-//     // 1. Store mem_address to temp_buffer[first_pos].
-//     // 2. mem_address=temp_buffer[first_pos] + proc_id*proc_elem_len + index.
+//     // 1. temp_buffer[first_pos] = mem_address,
+//     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
+//     // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
 //     // 3. Read memory cell and store to state.
-//     // 4. mem_address=proc_id*proc_elem_len + index.
+//     // 4. mem_address = temp_buffer[second_pos],
+//     //    temp_buffer[second_pos] = temp_buffer[second_pos] + 1.
 //     // 5. Write memory cell and store to state.
 //     // 6. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
 //     // prepare end bit
