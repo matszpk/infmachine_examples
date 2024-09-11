@@ -964,7 +964,7 @@ impl Function1 for Mul1Func {
         let mut mults = (0..part_num + 1)
             .map(|i| {
                 if i == part_num {
-                    UDynVarSys::from_n(0u8, last_len)
+                    UDynVarSys::filled(last_len, BoolVarSys::from(false))
                 } else {
                     UDynVarSys::from_n(0u8, self.inout_len)
                 }
@@ -980,9 +980,14 @@ impl Function1 for Mul1Func {
                 self.inout_len,
             )
             .unwrap();
-            let mul = (&i0).fullmul(argb) + mults[i].clone().concat(mults[i + 1].clone());
+            let mul = (&i0).fullmul(argb)
+                + UDynVarSys::try_from_n(
+                    mults[i].clone().concat(mults[i + 1].clone()),
+                    self.inout_len << 1,
+                )
+                .unwrap();
             mults[i] = mul.clone().subvalue(0, self.inout_len);
-            mults[i + 1] = mul.clone().subvalue(0, part_len);
+            mults[i + 1] = mul.clone().subvalue(self.inout_len, part_len);
         }
         let (result, next_state) = (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
             + UDynVarSys::from_iter(mults.iter().map(|m| m.iter()).flatten()))
