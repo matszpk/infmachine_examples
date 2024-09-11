@@ -958,12 +958,12 @@ impl Function1 for Mul1Func {
         self.value.bitnum()
     }
     fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
-        let all_mul_len = self.inout_len + self.value.bitnum();
-        let part_num = (all_mul_len + self.inout_len - 1) / self.inout_len;
-        let last_len = all_mul_len % self.inout_len;
-        let mut mults = (0..part_num)
+        let value_len = self.value.bitnum();
+        let part_num = (value_len + self.inout_len - 1) / self.inout_len;
+        let last_len = value_len % self.inout_len;
+        let mut mults = (0..part_num + 1)
             .map(|i| {
-                if i + 1 == part_num {
+                if i == part_num {
                     UDynVarSys::from_n(0u8, last_len)
                 } else {
                     UDynVarSys::from_n(0u8, self.inout_len)
@@ -971,18 +971,18 @@ impl Function1 for Mul1Func {
             })
             .collect::<Vec<_>>();
         // make multiply
-        for i in 0..part_num - 1 {
-            let next_part_len = std::cmp::min(self.inout_len, all_mul_len - i * self.inout_len);
+        for i in 0..part_num {
+            let part_len = std::cmp::min(self.inout_len, value_len - i * self.inout_len);
             let argb = UDynVarSys::try_from_n(
                 UDynVarSys::from_iter(
-                    (0..next_part_len).map(|j| self.value.bit(self.inout_len * i + j)),
+                    (0..part_len).map(|j| self.value.bit(self.inout_len * i + j)),
                 ),
                 self.inout_len,
             )
             .unwrap();
             let mul = (&i0).fullmul(argb) + mults[i].clone().concat(mults[i + 1].clone());
             mults[i] = mul.clone().subvalue(0, self.inout_len);
-            mults[i + 1] = mul.clone().subvalue(0, next_part_len);
+            mults[i + 1] = mul.clone().subvalue(0, part_len);
         }
         (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
             + UDynVarSys::from_iter(mults.iter().map(|m| m.iter()).flatten()))
