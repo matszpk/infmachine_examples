@@ -2602,6 +2602,21 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 //     temp_buffer_step: u32,
 //     proc_elem_len: u64,
 // ) -> (InfParOutputSys, BoolVarSys) {
+//     assert_eq!(output_state.bitnum(), next_state.bitnum());
+//     assert_ne!(temp_buffer_step, 0);
+//     let config = input.config();
+//     let cell_len = 1 << config.cell_len_bits;
+//     let state_start = output_state.bitnum();
+//     let proc_len_bits = calc_log_bits_u64(proc_elem_len);
+//     type StageType = U4VarSys;
+//     extend_output_state(state_start, StageType::BITS + 1 + cell_len, input);
+//     // Repeat loop by proc_len:
+//     // 1. Store mem_address to temp_buffer[first_pos].
+//     // 2. mem_address=temp_buffer[first_pos] + proc_id*proc_elem_len + index.
+//     // 3. Read memory cell and store to state.
+//     // 4. mem_address=proc_id*proc_elem_len + index.
+//     // 5. Write memory cell and store to state and increase index
+//     // 6. If index < proc_elem_len then go to 2 else end.
 //     // prepare end bit
 //     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
 //     // finish generation
