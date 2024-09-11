@@ -984,9 +984,10 @@ impl Function1 for Mul1Func {
             mults[i] = mul.clone().subvalue(0, self.inout_len);
             mults[i + 1] = mul.clone().subvalue(0, part_len);
         }
-        (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
+        let (result, next_state) = (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
             + UDynVarSys::from_iter(mults.iter().map(|m| m.iter()).flatten()))
-        .split(self.value.bitnum())
+        .split(self.inout_len);
+        (next_state, result)
     }
 }
 
