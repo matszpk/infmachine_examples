@@ -931,6 +931,13 @@ impl Function1 for Sub1Func {
     }
 }
 
+// Mul1Func
+pub struct Mul1Func {
+    inout_len: usize,
+    value: UDynVarSys,
+    sign: BoolVarSys,
+}
+
 // Shl1Func - shift left - multiply by 2^n.
 pub struct Shl1Func {
     inout_len: usize,
@@ -1650,6 +1657,37 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
         FuncNNAdapter2::from(func),
     )
 }
+
+// move to endpos
+
+// fn par_move_to_endpos(
+//     output_state: UDynVarSys,
+//     next_state: UDynVarSys,
+//     input: &mut InfParInputSys,
+//     temp_buffer_step: u32,
+//     end_pos: u32,
+//     mem_address: bool,
+//     proc_id: bool,
+// ) -> (InfParOutputSys, BoolVarSys) {
+//     let config = input.config();
+//     let dp_len = config.data_part_len;
+//     let total_stages =
+//         usize::from(end_pos >= dp_len) + 2 + usize::from(mem_address) + usize::from(proc_id);
+//     let state_start = output_state.bitnum();
+//     let stage_type_len = calc_log_bits(total_stages);
+//     extend_output_state(
+//         state_start,
+//         stage_type_len,
+//         input,
+//     );
+//     let stage = input.state.clone().subvalue(state_start, stage_type_len);
+//     // move to end_pos
+//     let outputs = vec![];
+//     // prepare end bit
+//     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
+//     // finish generation
+//     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
+// }
 
 // macro_rules! test_println {
 //     () => { eprintln!(); };
