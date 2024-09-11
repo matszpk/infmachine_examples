@@ -2594,3 +2594,16 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // finish generation
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
+
+// pub fn mem_data_to_start(
+//     output_state: UDynVarSys,
+//     next_state: UDynVarSys,
+//     input: &mut InfParInputSys,
+//     temp_buffer_step: u32,
+//     proc_elem_len: u64,
+// ) -> (InfParOutputSys, BoolVarSys) {
+//     // prepare end bit
+//     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
+//     // finish generation
+//     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
+// }
