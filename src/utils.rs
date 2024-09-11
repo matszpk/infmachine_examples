@@ -935,7 +935,59 @@ impl Function1 for Sub1Func {
 pub struct Mul1Func {
     inout_len: usize,
     value: UDynVarSys,
-    sign: BoolVarSys,
+}
+
+impl Mul1Func {
+    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+        Self { inout_len, value }
+    }
+    pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
+        Self {
+            inout_len,
+            value: if value != 0 {
+                UDynVarSys::from_n(value, (u64::BITS - value.leading_zeros()) as usize)
+            } else {
+                UDynVarSys::from_n(value, 1)
+            },
+        }
+    }
+}
+
+impl Function1 for Mul1Func {
+    fn state_len(&self) -> usize {
+        self.value.bitnum()
+    }
+    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        let all_mul_len = self.inout_len + self.value.bitnum();
+        let part_num = (all_mul_len + self.inout_len - 1) / self.inout_len;
+        let last_len = all_mul_len % self.inout_len;
+        let mut mults = (0..part_num)
+            .map(|i| {
+                if i + 1 == part_num {
+                    UDynVarSys::from_n(0u8, last_len)
+                } else {
+                    UDynVarSys::from_n(0u8, self.inout_len)
+                }
+            })
+            .collect::<Vec<_>>();
+        // make multiply
+        for i in 0..part_num - 1 {
+            let next_part_len = std::cmp::min(self.inout_len, all_mul_len - i * self.inout_len);
+            let argb = UDynVarSys::try_from_n(
+                UDynVarSys::from_iter(
+                    (0..next_part_len).map(|j| self.value.bit(self.inout_len * i + j)),
+                ),
+                self.inout_len,
+            )
+            .unwrap();
+            let mul = (&i0).fullmul(argb) + mults[i].clone().concat(mults[i + 1].clone());
+            mults[i] = mul.clone().subvalue(0, self.inout_len);
+            mults[i + 1] = mul.clone().subvalue(0, next_part_len);
+        }
+        (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
+            + UDynVarSys::from_iter(mults.iter().map(|m| m.iter()).flatten()))
+        .split(self.value.bitnum())
+    }
 }
 
 // Shl1Func - shift left - multiply by 2^n.
