@@ -675,6 +675,7 @@ impl Function1 for Copy1Func {
     }
 }
 
+// functions 1: func(arg1) = dest
 // Bitwise operations
 
 macro_rules! macro_bit1func {
@@ -930,6 +931,41 @@ impl Function1 for Sub1Func {
     }
 }
 
+// Shl1Func - shift left - multiply by 2^n.
+pub struct Shl1Func {
+    inout_len: usize,
+    shift: usize,
+}
+
+impl Shl1Func {
+    pub fn new(inout_len: usize, shift: usize) -> Self {
+        Self { inout_len, shift }
+    }
+}
+
+impl Function1 for Shl1Func {
+    fn state_len(&self) -> usize {
+        self.shift
+    }
+    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        if self.shift <= self.inout_len {
+            (
+                i0.clone().subvalue(self.inout_len - self.shift, self.shift),
+                input_state.concat(i0.subvalue(0, self.shift)),
+            )
+        } else {
+            (
+                input_state
+                    .clone()
+                    .subvalue(self.inout_len, self.shift - self.inout_len)
+                    .concat(i0.clone()),
+                input_state.clone().subvalue(0, self.inout_len),
+            )
+        }
+    }
+}
+
+// functions 2: func(arg1, arg2) = dest
 // Bit ops
 
 macro_rules! macro_bit2func {
