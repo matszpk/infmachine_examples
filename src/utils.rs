@@ -2615,8 +2615,8 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 //     // 2. mem_address=temp_buffer[first_pos] + proc_id*proc_elem_len + index.
 //     // 3. Read memory cell and store to state.
 //     // 4. mem_address=proc_id*proc_elem_len + index.
-//     // 5. Write memory cell and store to state and increase index
-//     // 6. If index < proc_elem_len then go to 2 else end.
+//     // 5. Write memory cell and store to state.
+//     // 6. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
 //     // prepare end bit
 //     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
 //     // finish generation
