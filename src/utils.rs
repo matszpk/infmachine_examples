@@ -2704,7 +2704,7 @@ pub fn mem_data_to_start(
         |s: StageType, ic, mv| output_state.clone().concat(s.into()).concat(ic).concat(mv);
 
     let (first_pos, second_pos) = if dp_len == 1 { (2, 3) } else { (1, 2) };
-    assert!(second_pos + 1 < temp_buffer_step);
+    assert!(second_pos < temp_buffer_step);
     // Repeat loop by proc_len:
     // 1. temp_buffer[first_pos] = mem_address,
     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
@@ -2758,7 +2758,7 @@ pub fn mem_data_to_start(
             (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
             (InfDataParam::TempBuffer(second_pos), END_POS_MEM_ADDRESS),
         ],
-        SwapAdd2Func::new_from_u64(dp_len, proc_elem_len),
+        SwapAdd2Func::new_from_u64(dp_len, 1),
     );
     // 6. Write memory cell and store to state.
     // 7. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
