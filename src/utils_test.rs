@@ -956,7 +956,7 @@ fn gen_mem_data_to_start_test(
     proc_num: u64,
     mem_size: u64,
     temp_buffer_step: u32,
-    proc_elem_len: u64,
+    proc_elem_len_bits: u32,
 ) -> Result<String, toml::ser::Error> {
     let config = InfParInterfaceConfig {
         cell_len_bits,
@@ -986,7 +986,7 @@ fn gen_mem_data_to_start_test(
         UDynVarSys::from_n(2u8, 2),
         &mut mach_input,
         temp_buffer_step,
-        proc_elem_len,
+        proc_elem_len_bits,
     );
     // stop stage
     let mut output_3 = InfParOutputSys::new(config);
@@ -1466,7 +1466,7 @@ fn main() {
         }
         "mem_data_to_start" => {
             let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
-            let proc_elem_len: u64 = args.next().unwrap().parse().unwrap();
+            let proc_elem_len_bits: u32 = args.next().unwrap().parse().unwrap();
             assert_ne!(temp_buffer_step, 0);
             print!(
                 "{}",
@@ -1477,7 +1477,7 @@ fn main() {
                     proc_num,
                     mem_size,
                     temp_buffer_step,
-                    proc_elem_len,
+                    proc_elem_len_bits,
                 )
                 .unwrap())
             );

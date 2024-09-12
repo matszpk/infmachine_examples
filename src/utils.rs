@@ -2595,26 +2595,21 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
 
-pub struct CopyMul2Func {
-    mul: Mul1Func,
+pub struct AlignShl2Func {
+    shl: Shl1Func,
 }
 
-impl CopyMul2Func {
-    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+impl AlignShl2Func {
+    pub fn new(inout_len: usize, bits: u32) -> Self {
         Self {
-            mul: Mul1Func::new(inout_len, value),
-        }
-    }
-    pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
-        Self {
-            mul: Mul1Func::new_from_u64(inout_len, value),
+            shl: Shl1Func::new(inout_len, bits as usize),
         }
     }
 }
 
-impl FunctionNN for CopyMul2Func {
+impl FunctionNN for AlignShl2Func {
     fn state_len(&self) -> usize {
-        self.mul.state_len()
+        self.shl.state_len()
     }
     fn input_num(&self) -> usize {
         2
@@ -2629,8 +2624,8 @@ impl FunctionNN for CopyMul2Func {
         input_state: UDynVarSys,
         input: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (mul_next_state, mul_result) = self.mul.output(input_state, input[1].clone());
-        (mul_next_state, vec![input[0].clone(), mul_result])
+        let (shl_next_state, shl_result) = self.shl.output(input_state, input[1].clone());
+        (shl_next_state, vec![input[0].clone(), shl_result])
     }
 }
 
@@ -2679,10 +2674,11 @@ pub fn mem_data_to_start(
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
-    proc_elem_len: u64,
+    proc_elem_len_bits: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_ne!(temp_buffer_step, 0);
+    let proc_elem_len = 1u64 << proc_elem_len_bits;
     let config = input.config();
     let cell_len = 1 << config.cell_len_bits;
     let dp_len = config.data_part_len as usize;
@@ -2707,7 +2703,7 @@ pub fn mem_data_to_start(
     let (first_pos, second_pos) = if dp_len == 1 { (2, 3) } else { (1, 2) };
     assert!(second_pos < temp_buffer_step);
     // Repeat loop by proc_len:
-    // 1. temp_buffer[first_pos] = mem_address,
+    // 1. temp_buffer[first_pos] = align_to_pow2(mem_address),
     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
     let (output_0, _) = par_process_infinite_data_stage(
         create_out_state(StageType::from(0u8), index_count.clone(), mem_value.clone()),
@@ -2722,7 +2718,7 @@ pub fn mem_data_to_start(
             (InfDataParam::TempBuffer(first_pos), END_POS_MEM_ADDRESS),
             (InfDataParam::TempBuffer(second_pos), END_POS_MEM_ADDRESS),
         ],
-        CopyMul2Func::new_from_u64(dp_len, proc_elem_len),
+        AlignShl2Func::new(dp_len, proc_elem_len_bits),
     );
     // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
     let (output_1, _) = par_process_temp_buffer_2_to_mem_address_stage(
