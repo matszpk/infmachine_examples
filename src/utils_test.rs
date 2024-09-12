@@ -975,15 +975,15 @@ fn gen_mem_data_to_start_test(
     let mut mach_input = mobj.input();
     // first stage
     let (output_1, _) = init_machine_end_pos_stage(
-        UDynVarSys::from_n(0u8, 1),
-        UDynVarSys::from_n(1u8, 1),
+        UDynVarSys::from_n(0u8, 2),
+        UDynVarSys::from_n(1u8, 2),
         &mut mach_input,
         temp_buffer_step,
     );
     // first stage
     let (output_2, _) = mem_data_to_start(
-        UDynVarSys::from_n(1u8, 1),
-        UDynVarSys::from_n(2u8, 1),
+        UDynVarSys::from_n(1u8, 2),
+        UDynVarSys::from_n(2u8, 2),
         &mut mach_input,
         temp_buffer_step,
         proc_elem_len,
