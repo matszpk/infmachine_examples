@@ -2763,7 +2763,7 @@ pub fn mem_data_to_start(
     // 6. Write memory cell and store to state.
     // 7. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
     let mut output_5 = output_base.clone();
-    output_5.state = create_out_state(StageType::from(0u8), &index_count + 1u8, mem_value.clone());
+    output_5.state = create_out_state(StageType::from(1u8), &index_count + 1u8, mem_value.clone());
     output_5.memw = true.into();
     output_5.memval = mem_value.clone();
     // prepare end bit
