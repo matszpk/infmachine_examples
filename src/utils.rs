@@ -2767,7 +2767,7 @@ pub fn mem_data_to_start(
     output_5.memw = true.into();
     output_5.memval = mem_value.clone();
     // prepare end bit
-    let end = (&stage).equal(5u8) & (&index_count).equal(proc_elem_len);
+    let end = (&stage).equal(5u8) & (&index_count).equal(proc_elem_len - 1);
     let outputs = vec![output_0, output_1, output_2, output_3, output_4, output_5];
     // finish generation
     finish_stage_with_table(output_state, next_state, input, outputs, stage.into(), end)
