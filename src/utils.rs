@@ -2595,32 +2595,180 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
 
-// pub fn mem_data_to_start(
-//     output_state: UDynVarSys,
-//     next_state: UDynVarSys,
-//     input: &mut InfParInputSys,
-//     temp_buffer_step: u32,
-//     proc_elem_len: u64,
-// ) -> (InfParOutputSys, BoolVarSys) {
-//     assert_eq!(output_state.bitnum(), next_state.bitnum());
-//     assert_ne!(temp_buffer_step, 0);
-//     let config = input.config();
-//     let cell_len = 1 << config.cell_len_bits;
-//     let state_start = output_state.bitnum();
-//     let proc_len_bits = calc_log_bits_u64(proc_elem_len);
-//     type StageType = U4VarSys;
-//     extend_output_state(state_start, StageType::BITS + 1 + cell_len, input);
-//     // Repeat loop by proc_len:
-//     // 1. temp_buffer[first_pos] = mem_address,
-//     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
-//     // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
-//     // 3. Read memory cell and store to state.
-//     // 4. mem_address = temp_buffer[second_pos],
-//     //    temp_buffer[second_pos] = temp_buffer[second_pos] + 1.
-//     // 5. Write memory cell and store to state.
-//     // 6. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
-//     // prepare end bit
-//     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
-//     // finish generation
-//     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
-// }
+pub struct CopyMul2Func {
+    mul: Mul1Func,
+}
+
+impl CopyMul2Func {
+    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+        Self {
+            mul: Mul1Func::new(inout_len, value),
+        }
+    }
+    pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
+        Self {
+            mul: Mul1Func::new_from_u64(inout_len, value),
+        }
+    }
+}
+
+impl FunctionNN for CopyMul2Func {
+    fn state_len(&self) -> usize {
+        self.mul.state_len()
+    }
+    fn input_num(&self) -> usize {
+        2
+    }
+    fn output_num(&self) -> usize {
+        2
+    }
+    // i0 - mem_address, i1 - proc_id
+    // o0 - temp_buffer[first_pos], o1 - temp_buffer[second_pos]
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        input: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let (mul_next_state, mul_result) = self.mul.output(input_state, input[1].clone());
+        (mul_next_state, vec![input[0].clone(), mul_result])
+    }
+}
+
+pub struct SwapAdd2Func {
+    add: Add1Func,
+}
+
+impl SwapAdd2Func {
+    pub fn new(inout_len: usize, value: UDynVarSys) -> Self {
+        Self {
+            add: Add1Func::new(inout_len, value),
+        }
+    }
+    pub fn new_from_u64(inout_len: usize, value: u64) -> Self {
+        Self {
+            add: Add1Func::new_from_u64(inout_len, value),
+        }
+    }
+}
+
+impl FunctionNN for SwapAdd2Func {
+    fn state_len(&self) -> usize {
+        self.add.state_len()
+    }
+    fn input_num(&self) -> usize {
+        1
+    }
+    fn output_num(&self) -> usize {
+        2
+    }
+    // i0 - temp_buffer[second_pos]
+    // o0 - mem_address, o1 - temp_buffer[second_pos]
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        input: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+        let (add_next_state, add_result) = self.add.output(input_state, input[0].clone());
+        (add_next_state, vec![input[0].clone(), add_result])
+    }
+}
+
+pub fn mem_data_to_start(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    proc_elem_len: u64,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_eq!(output_state.bitnum(), next_state.bitnum());
+    assert_ne!(temp_buffer_step, 0);
+    let config = input.config();
+    let cell_len = 1 << config.cell_len_bits;
+    let dp_len = config.data_part_len as usize;
+    let state_start = output_state.bitnum();
+    let index_bits = std::cmp::max(calc_log_bits_u64(proc_elem_len), 1);
+    type StageType = U3VarSys;
+    extend_output_state(state_start, StageType::BITS + index_bits + cell_len, input);
+    let stage =
+        StageType::try_from(input.state.clone().subvalue(state_start, StageType::BITS)).unwrap();
+    let index_count = input
+        .state
+        .clone()
+        .subvalue(state_start + StageType::BITS, index_bits);
+    let mem_value = input
+        .state
+        .clone()
+        .subvalue(state_start + StageType::BITS + index_bits, cell_len);
+    let output_base = InfParOutputSys::new(config);
+    let create_out_state =
+        |s: StageType, ic, mv| output_state.clone().concat(s.into()).concat(ic).concat(mv);
+
+    let (first_pos, second_pos) = if dp_len == 1 { (2, 3) } else { (1, 2) };
+    assert!(second_pos + 1 < temp_buffer_step);
+    // Repeat loop by proc_len:
+    // 1. temp_buffer[first_pos] = mem_address,
+    //    temp_buffer[second_pos] = proc_id*proc_elem_len.
+    let (output_0, _) = par_process_infinite_data_stage(
+        create_out_state(StageType::from(0u8), index_count.clone(), mem_value.clone()),
+        create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
+        input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::ProcId, END_POS_PROC_ID),
+        ],
+        &[
+            (InfDataParam::TempBuffer(first_pos), END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(second_pos), END_POS_MEM_ADDRESS),
+        ],
+        CopyMul2Func::new_from_u64(dp_len, proc_elem_len),
+    );
+    // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
+    let (output_1, _) = par_process_temp_buffer_2_to_mem_address_stage(
+        create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
+        create_out_state(StageType::from(2u8), index_count.clone(), mem_value.clone()),
+        input,
+        temp_buffer_step,
+        first_pos,
+        second_pos,
+        false,
+        false,
+        Add2Func::new(),
+    );
+    // 3. Read memory cell.
+    let mut output_2 = output_base.clone();
+    output_2.state = create_out_state(StageType::from(3u8), index_count.clone(), mem_value.clone());
+    output_2.memr = true.into();
+    // 4. store memory cell to state.
+    let mut output_3 = output_base.clone();
+    output_3.state = create_out_state(
+        StageType::from(4u8),
+        index_count.clone(),
+        input.memval.clone(),
+    );
+    // 5. mem_address = temp_buffer[second_pos],
+    //    temp_buffer[second_pos] = temp_buffer[second_pos] + 1.
+    let (output_4, _) = par_process_infinite_data_stage(
+        create_out_state(StageType::from(4u8), index_count.clone(), mem_value.clone()),
+        create_out_state(StageType::from(5u8), index_count.clone(), mem_value.clone()),
+        input,
+        temp_buffer_step,
+        &[(InfDataParam::TempBuffer(second_pos), END_POS_MEM_ADDRESS)],
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(second_pos), END_POS_MEM_ADDRESS),
+        ],
+        SwapAdd2Func::new_from_u64(dp_len, proc_elem_len),
+    );
+    // 6. Write memory cell and store to state.
+    // 7. If index != proc_elem_len-1 then index+=1 and go to 2 else end.
+    let mut output_5 = output_base.clone();
+    output_5.state = create_out_state(StageType::from(0u8), &index_count + 1u8, mem_value.clone());
+    output_5.memw = true.into();
+    output_5.memval = mem_value.clone();
+    // prepare end bit
+    let end = (&stage).equal(5u8) & (&index_count).equal(proc_elem_len);
+    let outputs = vec![output_0, output_1, output_2, output_3, output_4, output_5];
+    // finish generation
+    finish_stage_with_table(output_state, next_state, input, outputs, stage.into(), end)
+}
