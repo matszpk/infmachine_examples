@@ -573,7 +573,7 @@ fn gen_process_proc_id_to_temp_buffer_test(
         &mut mach_input,
         temp_buffer_step,
     );
-    let (output_2, _) = par_process_proc_id_to_temp_buffer_stage(
+    let (output_2, _, _) = par_process_proc_id_to_temp_buffer_stage(
         UDynVarSys::from_n(1u8, 2),
         UDynVarSys::from_n(2u8, 2),
         &mut mach_input,
@@ -627,7 +627,7 @@ fn gen_process_proc_id_to_mem_address_test(
         &mut mach_input,
         temp_buffer_step,
     );
-    let (output_2, _) = par_process_proc_id_to_mem_address_stage(
+    let (output_2, _, _) = par_process_proc_id_to_mem_address_stage(
         UDynVarSys::from_n(1u8, 2),
         UDynVarSys::from_n(2u8, 2),
         &mut mach_input,
@@ -688,7 +688,7 @@ fn gen_process_temp_buffer_to_mem_address_test(
         temp_buffer_step,
         temp_buffer_step_pos,
     );
-    let (output_3, _) = par_process_temp_buffer_to_mem_address_stage(
+    let (output_3, _, _) = par_process_temp_buffer_to_mem_address_stage(
         UDynVarSys::from_n(2u8, 2),
         UDynVarSys::from_n(3u8, 2),
         &mut mach_input,
@@ -749,7 +749,7 @@ fn gen_process_mem_address_to_temp_buffer_test(
         &mut mach_input,
         temp_buffer_step,
     );
-    let (output_3, _) = par_process_mem_address_to_temp_buffer_stage(
+    let (output_3, _, _) = par_process_mem_address_to_temp_buffer_stage(
         UDynVarSys::from_n(2u8, 2),
         UDynVarSys::from_n(3u8, 2),
         &mut mach_input,
@@ -807,7 +807,7 @@ fn process_3_temp_buffer_2_to_mem_address(
         &mut mach_input,
         temp_buffer_step,
     );
-    let (output_2, _) = par_process_proc_id_to_temp_buffer_stage(
+    let (output_2, _, _) = par_process_proc_id_to_temp_buffer_stage(
         UDynVarSys::from_n(1u8, 3),
         UDynVarSys::from_n(2u8, 3),
         &mut mach_input,
@@ -815,7 +815,7 @@ fn process_3_temp_buffer_2_to_mem_address(
         tbs_pos_1,
         func1,
     );
-    let (output_3, _) = par_process_proc_id_to_temp_buffer_stage(
+    let (output_3, _, _) = par_process_proc_id_to_temp_buffer_stage(
         UDynVarSys::from_n(2u8, 3),
         UDynVarSys::from_n(3u8, 3),
         &mut mach_input,
@@ -823,7 +823,7 @@ fn process_3_temp_buffer_2_to_mem_address(
         tbs_pos_2,
         func2,
     );
-    let (output_4, _) = par_process_temp_buffer_2_to_mem_address_stage(
+    let (output_4, _, _) = par_process_temp_buffer_2_to_mem_address_stage(
         UDynVarSys::from_n(3u8, 3),
         UDynVarSys::from_n(4u8, 3),
         &mut mach_input,
@@ -925,7 +925,7 @@ fn gen_process_infinite_data_test(
         &mut mach_input,
         temp_buffer_step,
     );
-    let (output_2, _) = par_process_infinite_data_stage(
+    let (output_2, _, _) = par_process_infinite_data_stage(
         UDynVarSys::from_n(1u8, 2),
         UDynVarSys::from_n(2u8, 2),
         &mut mach_input,

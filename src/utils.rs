@@ -526,42 +526,46 @@ pub const END_POS_PROC_ID: u32 = 1;
 
 pub trait Function1 {
     fn state_len(&self) -> usize;
-    // return (output state, output)
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys);
+    // return (output state, output, external_outputs)
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>);
 }
 
 pub trait Function2 {
     fn state_len(&self) -> usize;
-    // return (output state, output)
+    // return (output state, output, external_outputs)
     fn output(
         &self,
         input_state: UDynVarSys,
         i0: UDynVarSys,
         i1: UDynVarSys,
-    ) -> (UDynVarSys, UDynVarSys);
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>);
 }
 
 pub trait Function2_2 {
     fn state_len(&self) -> usize;
-    // return (output state, output0, output1)
+    // return (output state, output0, output1, external_outputs)
     fn output(
         &self,
         input_state: UDynVarSys,
         i0: UDynVarSys,
         i1: UDynVarSys,
-    ) -> (UDynVarSys, UDynVarSys, UDynVarSys);
+    ) -> (UDynVarSys, UDynVarSys, UDynVarSys, Vec<UDynVarSys>);
 }
 
 pub trait FunctionNN {
     fn state_len(&self) -> usize;
     fn input_num(&self) -> usize;
     fn output_num(&self) -> usize;
-    // return (output state, outputs_vec)
+    // return (output state, outputs_vec, external_outputs)
     fn output(
         &self,
         input_state: UDynVarSys,
         inputs: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>);
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>);
 }
 
 pub struct FuncNNAdapter1<F: Function1> {
@@ -608,9 +612,9 @@ impl<F: Function1> FunctionNN for FuncNNAdapter1<F> {
         &self,
         input_state: UDynVarSys,
         inputs: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (out_state, output) = self.f.output(input_state, inputs[0].clone());
-        (out_state, vec![output])
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let (out_state, output, ext_outputs) = self.f.output(input_state, inputs[0].clone());
+        (out_state, vec![output], ext_outputs)
     }
 }
 
@@ -628,11 +632,11 @@ impl<F: Function2> FunctionNN for FuncNNAdapter2<F> {
         &self,
         input_state: UDynVarSys,
         inputs: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (out_state, output) = self
-            .f
-            .output(input_state, inputs[0].clone(), inputs[1].clone());
-        (out_state, vec![output])
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let (out_state, output, ext_outputs) =
+            self.f
+                .output(input_state, inputs[0].clone(), inputs[1].clone());
+        (out_state, vec![output], ext_outputs)
     }
 }
 
@@ -650,11 +654,11 @@ impl<F: Function2_2> FunctionNN for FuncNNAdapter2_2<F> {
         &self,
         input_state: UDynVarSys,
         inputs: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (out_state, output, output2) =
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let (out_state, output, output2, ext_outputs) =
             self.f
                 .output(input_state, inputs[0].clone(), inputs[1].clone());
-        (out_state, vec![output, output2])
+        (out_state, vec![output, output2], ext_outputs)
     }
 }
 
@@ -670,8 +674,8 @@ impl Function1 for Copy1Func {
     fn state_len(&self) -> usize {
         0
     }
-    fn output(&self, _: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
-        (UDynVarSys::var(0), i0)
+    fn output(&self, _: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
+        (UDynVarSys::var(0), i0, vec![])
     }
 }
 
@@ -705,7 +709,11 @@ macro_rules! macro_bit1func {
             fn state_len(&self) -> usize {
                 calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1)
             }
-            fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+            fn output(
+                &self,
+                input_state: UDynVarSys,
+                i0: UDynVarSys,
+            ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
                 let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
                 let state_len = self.state_len();
                 // get current part of value to add to input.
@@ -731,7 +739,7 @@ macro_rules! macro_bit1func {
                     UDynVarSys::from_n(max_state_count, state_len),
                     &index + 1u8,
                 );
-                (next_state, result)
+                (next_state, result, vec![])
             }
         }
     };
@@ -799,7 +807,11 @@ impl Function1 for Add1Func {
     fn state_len(&self) -> usize {
         calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1) + 1
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
         let state_len = self.state_len();
         // get current part of value to add to input.
@@ -831,8 +843,8 @@ impl Function1 for Add1Func {
             UDynVarSys::from_n(max_state_count, state_len - 1),
             &index + 1u8,
         )
-        .concat(UDynVarSys::filled(1, carry));
-        (next_state, result)
+        .concat(UDynVarSys::filled(1, carry.clone()));
+        (next_state, result, vec![UDynVarSys::filled(1, carry)])
     }
 }
 
@@ -894,7 +906,11 @@ impl Function1 for Sub1Func {
     fn state_len(&self) -> usize {
         calc_log_bits(((self.value.bitnum() + self.inout_len - 1) / self.inout_len) + 1) + 1
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         let max_state_count = (self.value.bitnum() + self.inout_len - 1) / self.inout_len;
         let state_len = self.state_len();
         // get current part of value to add to input.
@@ -926,8 +942,8 @@ impl Function1 for Sub1Func {
             UDynVarSys::from_n(max_state_count, state_len - 1),
             &index + 1u8,
         )
-        .concat(UDynVarSys::filled(1, !carry));
-        (next_state, result)
+        .concat(UDynVarSys::filled(1, !carry.clone()));
+        (next_state, result, vec![UDynVarSys::filled(1, carry)])
     }
 }
 
@@ -957,7 +973,11 @@ impl Function1 for Mul1Func {
     fn state_len(&self) -> usize {
         self.value.bitnum()
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         let value_len = self.value.bitnum();
         let part_num = (value_len + self.inout_len - 1) / self.inout_len;
         let mut mults = (0..part_num + 1)
@@ -992,7 +1012,7 @@ impl Function1 for Mul1Func {
         let (result, next_state) = (input_state.concat(UDynVarSys::from_n(0u8, self.inout_len))
             + UDynVarSys::from_iter(mults.iter().map(|m| m.iter()).flatten()))
         .split(self.inout_len);
-        (next_state, result)
+        (next_state.clone(), result, vec![next_state])
     }
 }
 
@@ -1012,19 +1032,27 @@ impl Function1 for Shl1Func {
     fn state_len(&self) -> usize {
         self.shift
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         if self.shift <= self.inout_len {
+            let state = i0.clone().subvalue(self.inout_len - self.shift, self.shift);
             (
-                i0.clone().subvalue(self.inout_len - self.shift, self.shift),
+                state.clone(),
                 input_state.concat(i0.subvalue(0, self.inout_len - self.shift)),
+                vec![state],
             )
         } else {
+            let state = input_state
+                .clone()
+                .subvalue(self.inout_len, self.shift - self.inout_len)
+                .concat(i0.clone());
             (
-                input_state
-                    .clone()
-                    .subvalue(self.inout_len, self.shift - self.inout_len)
-                    .concat(i0.clone()),
+                state.clone(),
                 input_state.clone().subvalue(0, self.inout_len),
+                vec![state],
             )
         }
     }
@@ -1055,17 +1083,27 @@ impl Function1 for MulAdd1Func {
     fn state_len(&self) -> usize {
         self.mul.state_len() + self.add.state_len()
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
-        let (mul_next_state, mul_result) = self
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
+        let (mul_next_state, mul_result, mul_ext_outputs) = self
             .mul
             .output(input_state.clone().subvalue(0, self.mul.state_len()), i0);
-        let (add_next_state, add_result) = self.add.output(
+        let (add_next_state, add_result, add_ext_outputs) = self.add.output(
             input_state
                 .clone()
                 .subvalue(self.mul.state_len(), self.add.state_len()),
             mul_result,
         );
-        (mul_next_state.concat(add_next_state), add_result)
+        let mut ext_outputs = mul_ext_outputs;
+        ext_outputs.extend(add_ext_outputs);
+        (
+            mul_next_state.concat(add_next_state),
+            add_result,
+            ext_outputs,
+        )
     }
 }
 
@@ -1086,7 +1124,11 @@ impl Function1 for Align1Func {
     fn state_len(&self) -> usize {
         calc_log_bits_u64(self.bits / (self.inout_len as u64) + 2) + 2
     }
-    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         // part_num - parts number except last with not fully filled.
         let part_num = self.bits / (self.inout_len as u64);
         let last_part_len = self.bits % (self.inout_len as u64);
@@ -1144,8 +1186,9 @@ impl Function1 for Align1Func {
             &carry,
         );
         (
-            new_counter.concat(UDynVarSys::from_iter([new_inc, new_carry])),
+            new_counter.concat(UDynVarSys::from_iter([new_inc, new_carry.clone()])),
             result,
+            vec![UDynVarSys::filled(1, new_carry)],
         )
     }
 }
@@ -1172,10 +1215,10 @@ macro_rules! macro_bit2func {
                 _: UDynVarSys,
                 i0: UDynVarSys,
                 i1: UDynVarSys,
-            ) -> (UDynVarSys, UDynVarSys) {
+            ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
                 // get current part of value to add to input.
                 let result = i0.$op(i1);
-                (UDynVarSys::var(0), result)
+                (UDynVarSys::var(0), result, vec![])
             }
         }
     };
@@ -1203,12 +1246,12 @@ impl Function2 for Add2Func {
         input_state: UDynVarSys,
         i0: UDynVarSys,
         i1: UDynVarSys,
-    ) -> (UDynVarSys, UDynVarSys) {
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         // get current part of value to add to input.
         let old_carry = input_state.bit(0);
         let (result, carry) = i0.addc_with_carry(&i1, &old_carry);
         let next_state = UDynVarSys::filled(1, carry);
-        (next_state, result)
+        (next_state.clone(), result, vec![next_state])
     }
 }
 
@@ -1230,13 +1273,13 @@ impl Function2 for Sub2Func {
         input_state: UDynVarSys,
         i0: UDynVarSys,
         i1: UDynVarSys,
-    ) -> (UDynVarSys, UDynVarSys) {
+    ) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
         // get current part of value to sub to input.
         let old_neg_carry = !input_state.bit(0);
         // start with carry=1 and negate argument i1.
         let (result, carry) = i0.addc_with_carry(&!i1, &old_neg_carry);
-        let next_state = UDynVarSys::filled(1, !carry);
-        (next_state, result)
+        let next_state = UDynVarSys::filled(1, !&carry);
+        (next_state, result, vec![UDynVarSys::filled(1, carry)])
     }
 }
 
@@ -1267,7 +1310,11 @@ impl FunctionNN for XorNNFuncSample {
     fn output_num(&self) -> usize {
         self.output_num
     }
-    fn output(&self, _: UDynVarSys, inputs: &[UDynVarSys]) -> (UDynVarSys, Vec<UDynVarSys>) {
+    fn output(
+        &self,
+        _: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
         let mut outputs = (0..self.output_num)
             .map(|_| UDynVarSys::from_n(0u8, self.inout_len))
             .collect::<Vec<_>>();
@@ -1275,7 +1322,7 @@ impl FunctionNN for XorNNFuncSample {
             outputs[i % self.output_num] ^=
                 UDynVarSys::try_from_n(inputs[i].clone(), self.inout_len).unwrap();
         }
-        (UDynVarSys::var(0), outputs)
+        (UDynVarSys::var(0), outputs, vec![])
     }
 }
 
@@ -1292,7 +1339,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_infinite_data_stage(
+    let (o, end, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1303,7 +1350,8 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
             END_POS_PROC_ID,
         )],
         FuncNNAdapter1::from(Copy1Func::new()),
-    )
+    );
+    (o, end)
 }
 
 // par_copy_proc_id_to_mem_address_stage - copy proc_id to mem_address.
@@ -1315,7 +1363,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_infinite_data_stage(
+    let (o, end, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1323,7 +1371,8 @@ pub fn par_copy_proc_id_to_mem_address_stage(
         &[(InfDataParam::ProcId, END_POS_PROC_ID)],
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
         FuncNNAdapter1::from(Copy1Func::new()),
-    )
+    );
+    (o, end)
 }
 
 // par_copy_temp_buffer_to_mem_address_stage - copy temp_buffer to mem_address
@@ -1335,7 +1384,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_infinite_data_stage(
+    let (o, end, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1346,7 +1395,8 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
         )],
         &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
         FuncNNAdapter1::from(Copy1Func::new()),
-    )
+    );
+    (o, end)
 }
 
 // par_copy_mem_address_to_temp_buffer_stage - copy mem_address to temp_buffer
@@ -1358,7 +1408,7 @@ pub fn par_copy_mem_address_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    par_process_infinite_data_stage(
+    let (o, end, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1369,7 +1419,8 @@ pub fn par_copy_mem_address_to_temp_buffer_stage(
             END_POS_MEM_ADDRESS,
         )],
         FuncNNAdapter1::from(Copy1Func::new()),
-    )
+    );
+    (o, end)
 }
 
 // par_copy_temp_buffer_to_temp_buffer_stage - copy temp_buffer to temp_buffer
@@ -1389,7 +1440,7 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
     } else {
         END_POS_MEM_ADDRESS
     };
-    par_process_infinite_data_stage(
+    let (o, end, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1397,7 +1448,8 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
         &[(InfDataParam::TempBuffer(tbs_src_pos), end_pos)],
         &[(InfDataParam::TempBuffer(tbs_dest_pos), end_pos)],
         FuncNNAdapter1::from(Copy1Func::new()),
-    )
+    );
+    (o, end)
 }
 
 // process routines
@@ -1411,7 +1463,7 @@ pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1435,7 +1487,7 @@ pub fn par_process_proc_id_to_mem_address_stage<F: Function1>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1456,7 +1508,7 @@ pub fn par_process_temp_buffer_to_mem_address_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1480,7 +1532,7 @@ pub fn par_process_mem_address_to_temp_buffer_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1508,7 +1560,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1540,7 +1592,7 @@ pub fn par_process_mem_address_stage<F: Function1>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1563,7 +1615,7 @@ pub fn par_process_proc_id_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1599,7 +1651,7 @@ pub fn par_process_proc_id_mem_address_to_mem_address_stage<F: Function2>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1623,7 +1675,7 @@ pub fn par_process_proc_id_mem_address_to_temp_buffer_stage<F: Function2>(
     dest_tbs_pos: u32,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1654,7 +1706,7 @@ pub fn par_process_proc_id_temp_buffer_to_mem_address_stage<F: Function2>(
     src_tbs_pos: u32,
     src_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1687,7 +1739,7 @@ pub fn par_process_mem_address_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1725,7 +1777,7 @@ pub fn par_process_mem_address_temp_buffer_to_mem_address_stage<F: Function2>(
     src_tbs_pos: u32,
     src_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1760,7 +1812,7 @@ pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src2_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1807,7 +1859,7 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     src2_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1886,7 +1938,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     src_params: &[(InfDataParam, u32)],
     dests: &[(InfDataParam, u32)],
     func: F,
-) -> (InfParOutputSys, BoolVarSys) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
     let src_len = src_params.len();
     let dest_len = dests.len();
     assert_eq!(output_state.bitnum(), next_state.bitnum());
@@ -2385,7 +2437,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         func_inputs
     };
-    let (next_func_state, outvals) = func.output(func_state.clone(), &func_inputs);
+    let (next_func_state, outvals, ext_outputs) = func.output(func_state.clone(), &func_inputs);
     let mut output = output_base.clone();
     // get function output bitvector
     let func_outputs = {
@@ -2674,7 +2726,9 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // prepare end bit
     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
     // finish generation
-    finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
+    let (output, end) =
+        finish_stage_with_table(output_state, next_state, input, outputs, stage, end);
+    (output, end, ext_outputs)
 }
 
 pub struct AlignShl2Func {
@@ -2707,13 +2761,18 @@ impl FunctionNN for AlignShl2Func {
         &self,
         input_state: UDynVarSys,
         input: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>) {
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
         let (align_state, shl_state) = input_state.split(self.align.state_len());
-        let (align_next_state, align_result) = self.align.output(align_state, input[0].clone());
-        let (shl_next_state, shl_result) = self.shl.output(shl_state, input[1].clone());
+        let (align_next_state, align_result, align_ext_outputs) =
+            self.align.output(align_state, input[0].clone());
+        let (shl_next_state, shl_result, shl_ext_outputs) =
+            self.shl.output(shl_state, input[1].clone());
+        let mut ext_outputs = align_ext_outputs;
+        ext_outputs.extend(shl_ext_outputs);
         (
             align_next_state.concat(shl_next_state),
             vec![align_result, shl_result],
+            ext_outputs,
         )
     }
 }
@@ -2751,9 +2810,14 @@ impl FunctionNN for SwapAdd2Func {
         &self,
         input_state: UDynVarSys,
         input: &[UDynVarSys],
-    ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (add_next_state, add_result) = self.add.output(input_state, input[0].clone());
-        (add_next_state, vec![input[0].clone(), add_result])
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let (add_next_state, add_result, add_ext_outputs) =
+            self.add.output(input_state, input[0].clone());
+        (
+            add_next_state,
+            vec![input[0].clone(), add_result],
+            add_ext_outputs,
+        )
     }
 }
 
@@ -2793,7 +2857,7 @@ pub fn mem_data_to_start(
     // Repeat loop by proc_len:
     // 1. temp_buffer[first_pos] = align_to_pow2(mem_address),
     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
-    let (output_0, _) = par_process_infinite_data_stage(
+    let (output_0, _, _) = par_process_infinite_data_stage(
         create_out_state(StageType::from(0u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
         input,
@@ -2809,7 +2873,7 @@ pub fn mem_data_to_start(
         AlignShl2Func::new(dp_len, proc_elem_len_bits),
     );
     // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
-    let (output_1, _) = par_process_temp_buffer_2_to_mem_address_stage(
+    let (output_1, _, _) = par_process_temp_buffer_2_to_mem_address_stage(
         create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(2u8), index_count.clone(), mem_value.clone()),
         input,
@@ -2833,7 +2897,7 @@ pub fn mem_data_to_start(
     );
     // 5. mem_address = temp_buffer[second_pos],
     //    temp_buffer[second_pos] = temp_buffer[second_pos] + 1.
-    let (output_4, _) = par_process_infinite_data_stage(
+    let (output_4, _, _) = par_process_infinite_data_stage(
         create_out_state(StageType::from(4u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(5u8), index_count.clone(), mem_value.clone()),
         input,
