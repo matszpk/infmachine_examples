@@ -2678,12 +2678,14 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 }
 
 pub struct AlignShl2Func {
+    align: Align1Func,
     shl: Shl1Func,
 }
 
 impl AlignShl2Func {
     pub fn new(inout_len: usize, bits: u32) -> Self {
         Self {
+            align: Align1Func::new(inout_len, bits as u64),
             shl: Shl1Func::new(inout_len, bits as usize),
         }
     }
@@ -2691,7 +2693,7 @@ impl AlignShl2Func {
 
 impl FunctionNN for AlignShl2Func {
     fn state_len(&self) -> usize {
-        self.shl.state_len()
+        self.align.state_len() + self.shl.state_len()
     }
     fn input_num(&self) -> usize {
         2
@@ -2706,8 +2708,13 @@ impl FunctionNN for AlignShl2Func {
         input_state: UDynVarSys,
         input: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>) {
-        let (shl_next_state, shl_result) = self.shl.output(input_state, input[1].clone());
-        (shl_next_state, vec![input[0].clone(), shl_result])
+        let (align_state, shl_state) = input_state.split(self.align.state_len());
+        let (align_next_state, align_result) = self.align.output(align_state, input[0].clone());
+        let (shl_next_state, shl_result) = self.shl.output(shl_state, input[1].clone());
+        (
+            align_next_state.concat(shl_next_state),
+            vec![align_result, shl_result],
+        )
     }
 }
 
@@ -2750,7 +2757,6 @@ impl FunctionNN for SwapAdd2Func {
     }
 }
 
-// TODO: fix for alignment
 pub fn mem_data_to_start(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -2765,7 +2771,7 @@ pub fn mem_data_to_start(
     let cell_len = 1 << config.cell_len_bits;
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
-    let index_bits = std::cmp::max(calc_log_bits_u64(proc_elem_len), 1);
+    let index_bits = usize::try_from(proc_elem_len_bits).unwrap();
     type StageType = U3VarSys;
     extend_output_state(state_start, StageType::BITS + index_bits + cell_len, input);
     let stage =
