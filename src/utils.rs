@@ -1339,7 +1339,7 @@ pub fn par_copy_proc_id_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    let (o, end, _) = par_process_infinite_data_stage(
+    let (o, end, _, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1363,7 +1363,7 @@ pub fn par_copy_proc_id_to_mem_address_stage(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    let (o, end, _) = par_process_infinite_data_stage(
+    let (o, end, _, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1384,7 +1384,7 @@ pub fn par_copy_temp_buffer_to_mem_address_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    let (o, end, _) = par_process_infinite_data_stage(
+    let (o, end, _, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1408,7 +1408,7 @@ pub fn par_copy_mem_address_to_temp_buffer_stage(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
 ) -> (InfParOutputSys, BoolVarSys) {
-    let (o, end, _) = par_process_infinite_data_stage(
+    let (o, end, _, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1440,7 +1440,7 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
     } else {
         END_POS_MEM_ADDRESS
     };
-    let (o, end, _) = par_process_infinite_data_stage(
+    let (o, end, _, _) = par_process_infinite_data_stage(
         output_state,
         next_state,
         input,
@@ -1463,7 +1463,7 @@ pub fn par_process_proc_id_to_temp_buffer_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1487,7 +1487,7 @@ pub fn par_process_proc_id_to_mem_address_stage<F: Function1>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1508,7 +1508,7 @@ pub fn par_process_temp_buffer_to_mem_address_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1532,7 +1532,7 @@ pub fn par_process_mem_address_to_temp_buffer_stage<F: Function1>(
     temp_buffer_step: u32,
     temp_buffer_step_pos: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1560,7 +1560,7 @@ pub fn par_process_temp_buffer_to_temp_buffer_stage<F: Function1>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1592,7 +1592,7 @@ pub fn par_process_mem_address_stage<F: Function1>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1615,7 +1615,7 @@ pub fn par_process_proc_id_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1651,7 +1651,7 @@ pub fn par_process_proc_id_mem_address_to_mem_address_stage<F: Function2>(
     input: &mut InfParInputSys,
     temp_buffer_step: u32,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1675,7 +1675,7 @@ pub fn par_process_proc_id_mem_address_to_temp_buffer_stage<F: Function2>(
     dest_tbs_pos: u32,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1706,7 +1706,7 @@ pub fn par_process_proc_id_temp_buffer_to_mem_address_stage<F: Function2>(
     src_tbs_pos: u32,
     src_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1739,7 +1739,7 @@ pub fn par_process_mem_address_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1777,7 +1777,7 @@ pub fn par_process_mem_address_temp_buffer_to_mem_address_stage<F: Function2>(
     src_tbs_pos: u32,
     src_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1812,7 +1812,7 @@ pub fn par_process_temp_buffer_temp_buffer_to_temp_buffer_stage<F: Function2>(
     src2_proc_id_end_pos: bool,
     dest_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1859,7 +1859,7 @@ pub fn par_process_temp_buffer_2_to_mem_address_stage<F: Function2>(
     src_proc_id_end_pos: bool,
     src2_proc_id_end_pos: bool,
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     par_process_infinite_data_stage(
         output_state,
         next_state,
@@ -1930,6 +1930,7 @@ macro_rules! test_println {
 }
 
 // main routine to process infinite data (mem_address, proc_id and temp_buffer).
+// return (parmachine_output, end variable, external_outputs, external_outputs set variable)
 pub fn par_process_infinite_data_stage<F: FunctionNN>(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
@@ -1938,7 +1939,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     src_params: &[(InfDataParam, u32)],
     dests: &[(InfDataParam, u32)],
     func: F,
-) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>) {
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     let src_len = src_params.len();
     let dest_len = dests.len();
     assert_eq!(output_state.bitnum(), next_state.bitnum());
@@ -2483,6 +2484,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             .concat(func_outputs),
         next_func_state,
     );
+    let ext_outputs_set = (&stage).equal(outputs.len());
     outputs.push(output);
 
     // start from same position in states as read phase.
@@ -2728,7 +2730,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
     // finish generation
     let (output, end) =
         finish_stage_with_table(output_state, next_state, input, outputs, stage, end);
-    (output, end, ext_outputs)
+    (output, end, ext_outputs, ext_outputs_set)
 }
 
 pub struct AlignShl2Func {
@@ -2857,7 +2859,7 @@ pub fn mem_data_to_start(
     // Repeat loop by proc_len:
     // 1. temp_buffer[first_pos] = align_to_pow2(mem_address),
     //    temp_buffer[second_pos] = proc_id*proc_elem_len.
-    let (output_0, _, _) = par_process_infinite_data_stage(
+    let (output_0, _, _, _) = par_process_infinite_data_stage(
         create_out_state(StageType::from(0u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
         input,
@@ -2873,7 +2875,7 @@ pub fn mem_data_to_start(
         AlignShl2Func::new(dp_len, proc_elem_len_bits),
     );
     // 2. mem_address = temp_buffer[first_pos] + temp_buffer[second_pos].
-    let (output_1, _, _) = par_process_temp_buffer_2_to_mem_address_stage(
+    let (output_1, _, _, _) = par_process_temp_buffer_2_to_mem_address_stage(
         create_out_state(StageType::from(1u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(2u8), index_count.clone(), mem_value.clone()),
         input,
@@ -2897,7 +2899,7 @@ pub fn mem_data_to_start(
     );
     // 5. mem_address = temp_buffer[second_pos],
     //    temp_buffer[second_pos] = temp_buffer[second_pos] + 1.
-    let (output_4, _, _) = par_process_infinite_data_stage(
+    let (output_4, _, _, _) = par_process_infinite_data_stage(
         create_out_state(StageType::from(4u8), index_count.clone(), mem_value.clone()),
         create_out_state(StageType::from(5u8), index_count.clone(), mem_value.clone()),
         input,
