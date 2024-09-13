@@ -1098,7 +1098,7 @@ impl Function1 for Align1Func {
             &counter + 1u8,
             counter.clone(),
         );
-        // new_or - true if some bit is 1 from i0.
+        // new_or - true if some bit is 1 from i0. if counter<part_num.
         let new_or = bool_ite(
             (&counter).less_than(part_num),
             i0.iter().fold(BoolVarSys::from(false), |a, x| a | x),
