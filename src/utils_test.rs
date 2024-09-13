@@ -1318,6 +1318,24 @@ fn main() {
                 .unwrap())
             );
         }
+        "align_proc_id_to_mem_address" => {
+            let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+            let bits: u64 = args.next().unwrap().parse().unwrap();
+            assert_ne!(temp_buffer_step, 0);
+            print!(
+                "{}",
+                callsys(|| gen_process_proc_id_to_mem_address_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    temp_buffer_step,
+                    Align1Func::new(data_part_len as usize, bits),
+                )
+                .unwrap())
+            );
+        }
         "add_temp_buffer_to_mem_address" => {
             let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
             let temp_buffer_step_pos: u32 = args.next().unwrap().parse().unwrap();

@@ -1089,7 +1089,7 @@ impl Function1 for Align1Func {
         // part_num - parts number except last with not fully filled.
         let part_num = self.bits / (self.inout_len as u64);
         let last_part_len = self.bits % (self.inout_len as u64);
-        let counter_len = self.state_len() - 1;
+        let counter_len = self.state_len() - 2;
         let (counter, rest) = input_state.split(counter_len);
         let inc = rest.bit(0);
         let carry = rest.bit(1);
