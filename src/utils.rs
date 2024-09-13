@@ -2771,7 +2771,7 @@ pub fn mem_data_to_start(
     let cell_len = 1 << config.cell_len_bits;
     let dp_len = config.data_part_len as usize;
     let state_start = output_state.bitnum();
-    let index_bits = usize::try_from(proc_elem_len_bits).unwrap();
+    let index_bits = std::cmp::max(1, usize::try_from(proc_elem_len_bits).unwrap());
     type StageType = U3VarSys;
     extend_output_state(state_start, StageType::BITS + index_bits + cell_len, input);
     let stage =
