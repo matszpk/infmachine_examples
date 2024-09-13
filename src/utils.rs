@@ -1111,12 +1111,27 @@ impl Function1 for Align1Func {
         );
         // if one bit 1 from bits less than 'bits'.
         let new_inc: BoolVarSys = new_or | inc;
-        let (result, new_carry) = i0.addc_with_carry(
+        let new_i0 = dynint_ite(
+            (&counter).less_than(part_num),
+            UDynVarSys::from_n(0u8, self.inout_len),
+            dynint_ite(
+                (&counter).equal(part_num),
+                UDynVarSys::from_iter((0..self.inout_len).map(|i| {
+                    if i as u64 >= last_part_len {
+                        i0.bit(i)
+                    } else {
+                        false.into()
+                    }
+                })),
+                i0.clone(),
+            ),
+        );
+        let (result, new_carry) = new_i0.addc_with_carry(
             // get value to add - 2**(bits - part_num*inout_len)
             &dynint_ite(
                 (&counter).equal(part_num),
                 UDynVarSys::from_iter((0..self.inout_len).map(|i| {
-                    if last_part_len == i as u64 {
+                    if i as u64 == last_part_len {
                         new_inc.clone()
                     } else {
                         false.into()
