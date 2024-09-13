@@ -2460,10 +2460,11 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
         }
         UDynVarSys::from_iter(func_output_bits)
     };
+    // AND for all dest end_pos: E0 and E1 and E2 ... EN. If 1 then go to end.
+    let end_of_process = (src_len..src_len + dest_len)
+        .fold(BoolVarSys::from(true), |a, x| a.clone() & state_vars.bit(x));
     let next_stage = dynint_ite(
-        // AND for all dest end_pos: E0 and E1 and E2 ... EN. If 1 then go to end.
-        (src_len..src_len + dest_len)
-            .fold(BoolVarSys::from(true), |a, x| a.clone() & state_vars.bit(x)),
+        end_of_process.clone(),
         UDynVarSys::from_n(end_stage, stage_type_len),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
     );
@@ -2484,7 +2485,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
             .concat(func_outputs),
         next_func_state,
     );
-    let ext_outputs_set = (&stage).equal(outputs.len());
+    let ext_outputs_set = !end_of_process & (&stage).equal(outputs.len());
     outputs.push(output);
 
     // start from same position in states as read phase.
