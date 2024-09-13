@@ -979,6 +979,7 @@ impl Function1 for Mul1Func {
                 self.inout_len,
             )
             .unwrap();
+            // mul - product + previous element from mul.
             let mul = (&i0).fullmul(argb)
                 + UDynVarSys::try_from_n(
                     mults[i].clone().concat(mults[i + 1].clone()),
@@ -1111,6 +1112,7 @@ impl Function1 for Align1Func {
         );
         // if one bit 1 from bits less than 'bits'.
         let new_inc: BoolVarSys = new_or | inc;
+        // new_i0 - filtered i0 - zeroing bits lower than 'bits'.
         let new_i0 = dynint_ite(
             (&counter).less_than(part_num),
             UDynVarSys::from_n(0u8, self.inout_len),
