@@ -1068,6 +1068,72 @@ impl Function1 for MulAdd1Func {
     }
 }
 
+// Alignment
+
+pub struct Align1Func {
+    inout_len: usize,
+    bits: u64,
+}
+
+impl Align1Func {
+    pub fn new(inout_len: usize, bits: u64) -> Self {
+        Self { inout_len, bits }
+    }
+}
+
+impl Function1 for Align1Func {
+    fn state_len(&self) -> usize {
+        calc_log_bits_u64(self.bits / (self.inout_len as u64) + 2) + 2
+    }
+    fn output(&self, input_state: UDynVarSys, i0: UDynVarSys) -> (UDynVarSys, UDynVarSys) {
+        // part_num - parts number except last with not fully filled.
+        let part_num = self.bits / (self.inout_len as u64);
+        let last_part_len = self.bits % (self.inout_len as u64);
+        let counter_len = self.state_len() - 1;
+        let (counter, rest) = input_state.split(counter_len);
+        let inc = rest.bit(0);
+        let carry = rest.bit(1);
+        let new_counter = dynint_ite(
+            (&counter).less_than(part_num + 1),
+            &counter + 1u8,
+            counter.clone(),
+        );
+        // new_or - true if some bit is 1 from i0.
+        let new_or = bool_ite(
+            (&counter).less_than(part_num),
+            i0.iter().fold(BoolVarSys::from(false), |a, x| a | x),
+            bool_ite(
+                (&counter).equal(part_num),
+                i0.iter()
+                    .take(usize::try_from(last_part_len).unwrap())
+                    .fold(BoolVarSys::from(false), |a, x| a | x),
+                BoolVarSys::from(false),
+            ),
+        );
+        // if one bit 1 from bits less than 'bits'.
+        let new_inc: BoolVarSys = new_or | inc;
+        let (result, new_carry) = i0.addc_with_carry(
+            // get value to add - 2**(bits - part_num*inout_len)
+            &dynint_ite(
+                (&counter).equal(part_num),
+                UDynVarSys::from_iter((0..self.inout_len).map(|i| {
+                    if last_part_len == i as u64 {
+                        new_inc.clone()
+                    } else {
+                        false.into()
+                    }
+                })),
+                UDynVarSys::from_n(0u8, self.inout_len),
+            ),
+            &carry,
+        );
+        (
+            new_counter.concat(UDynVarSys::from_iter([new_inc, new_carry])),
+            result,
+        )
+    }
+}
+
 // functions 2: func(arg1, arg2) = dest
 // Bit ops
 
