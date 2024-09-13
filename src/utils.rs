@@ -1098,17 +1098,16 @@ impl Function1 for Align1Func {
             &counter + 1u8,
             counter.clone(),
         );
-        // new_or - true if some bit is 1 from i0. if counter<part_num.
+        // new_or - true if some bit is 1 from i0.
         let new_or = bool_ite(
             (&counter).less_than(part_num),
+            // collect bits to OR sum.
             i0.iter().fold(BoolVarSys::from(false), |a, x| a | x),
-            bool_ite(
-                (&counter).equal(part_num),
-                i0.iter()
-                    .take(usize::try_from(last_part_len).unwrap())
-                    .fold(BoolVarSys::from(false), |a, x| a | x),
-                BoolVarSys::from(false),
-            ),
+            // if counter==part_num then get last bits from last part.
+            // because later this value is ignored then value calculated any way.
+            i0.iter()
+                .take(usize::try_from(last_part_len).unwrap())
+                .fold(BoolVarSys::from(false), |a, x| a | x),
         );
         // if one bit 1 from bits less than 'bits'.
         let new_inc: BoolVarSys = new_or | inc;
