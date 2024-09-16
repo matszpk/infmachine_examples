@@ -78,11 +78,12 @@ impl PrefixSumState {
     }
 }
 
-fn gen_prefix_sum(
+fn gen_prefix_op(
     cell_len_bits: u32,
     data_part_len: u32,
     proc_num: u64,
     max_proc_num_bits: u32,
+    op: impl Fn(UDynVarSys, UDynVarSys) -> UDynVarSys,
 ) -> Result<String, toml::ser::Error> {
     let config = InfParInterfaceConfig {
         cell_len_bits,
@@ -138,8 +139,13 @@ fn main() {
     assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
     print!(
         "{}",
-        callsys(
-            || gen_prefix_sum(cell_len_bits, data_part_len, proc_num, max_proc_num_bits).unwrap()
+        callsys(|| gen_prefix_op(
+            cell_len_bits,
+            data_part_len,
+            proc_num,
+            max_proc_num_bits,
+            |arg1, arg2| arg1 + arg2
         )
+        .unwrap())
     );
 }
