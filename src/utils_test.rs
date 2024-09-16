@@ -1587,6 +1587,26 @@ fn main() {
                 .unwrap())
             );
         }
+        "sub_proc_id_to_mem_address_ext_out" => {
+            let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+            let value: u64 = args.next().unwrap().parse().unwrap();
+            assert_ne!(temp_buffer_step, 0);
+            print!(
+                "{}",
+                callsys(|| gen_process_proc_id_to_mem_address_ext_out_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    temp_buffer_step,
+                    0,
+                    0,
+                    Sub1Func::new_from_u64(data_part_len as usize, value),
+                )
+                .unwrap())
+            );
+        }
         _ => {
             panic!("Unknown example");
         }
