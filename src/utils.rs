@@ -147,12 +147,11 @@ pub fn finish_stage_with_table(
 }
 
 pub fn finish_machine_with_table(
-    mobj: InfParMachineObjectSys,
+    mut mobj: InfParMachineObjectSys,
     input: &InfParInputSys,
     mut output_stages: Vec<InfParOutputSys>,
     stage: UDynVarSys,
 ) -> InfParMachineDataSys {
-    let mut mobj = mobj;
     InfParOutputSys::fix_state_len(&mut output_stages);
     let output_stages = output_stages
         .into_iter()
