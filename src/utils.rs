@@ -144,6 +144,35 @@ pub fn finish_stage_with_table(
     (join_stage(next_state, output, end.clone()), end)
 }
 
+// install external outputs in stage.
+// ext_out_start - start (in bits) in output state
+// input_state - input state
+// ext_outs - ext output to replace
+// ext_out_set - true if ext output should be set
+pub fn install_external_outputs(
+    output: InfParOutputSys,
+    ext_out_start: usize,
+    input_state: &UDynVarSys,
+    ext_outs: UDynVarSys,
+    ext_out_set: BoolVarSys,
+) -> InfParOutputSys {
+    let mut output = output.clone();
+    let ext_out_len = ext_outs.bitnum();
+    output.state = UDynVarSys::from_iter((0..output.state.bitnum()).map(|i| {
+        if ext_out_start <= i && i < ext_out_start + ext_out_len {
+            // install this ext_outputs bit to state
+            bool_ite(
+                ext_out_set.clone(),
+                ext_outs.bit(i - ext_out_start),
+                input_state.bit(i),
+            )
+        } else {
+            output.state.bit(i)
+        }
+    }));
+    output
+}
+
 // function form: f(output_state, UDynVarSys, state_start: usize, in_output: &InfParOutputSys)
 //                -> (UDynVarSys, InfParOutputSys)
 // arguments:
