@@ -199,7 +199,7 @@ pub fn install_external_outputs(
     output
 }
 
-// TwoPasser - object that handle jumps between stages
+// LabelHandler - object that handle jumps between stages
 
 pub fn gen_label(place: &str, id: usize, label: &str) -> String {
     format!("{}_{}:{}", place, id, label)
