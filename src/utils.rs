@@ -71,6 +71,89 @@ const fn calc_log_bits_u64(n: u64) -> usize {
     }
 }
 
+// memory preparation
+
+pub struct CellVec {
+    cell_len_bits: u32,
+    len: u64,
+    data: Vec<u8>,
+}
+
+impl CellVec {
+    pub fn new(cell_len_bits: u32) -> Self {
+        Self {
+            cell_len_bits,
+            len: 0,
+            data: vec![],
+        }
+    }
+
+    pub fn len(&self) -> u64 {
+        self.len
+    }
+
+    pub fn push(&mut self, value: u64) {
+        if self.cell_len_bits < 3 {
+            let cell_mask = (1 << (1 << self.cell_len_bits)) - 1;
+            let cell_addr_mask = (1 << (3 - self.cell_len_bits)) - 1;
+            let bit_pos = self.len & cell_addr_mask;
+            if bit_pos == 0 {
+                self.data.push(0u8);
+            }
+            let shift = bit_pos << self.cell_len_bits;
+            let vlen = usize::try_from(self.len >> (3 - self.cell_len_bits)).unwrap();
+            self.data[vlen] |= (u8::try_from(value).unwrap() & cell_mask) << shift;
+        } else {
+            let val_bytes = value.to_le_bytes();
+            let cell_len = 1 << (self.cell_len_bits - 3);
+            let val_slice = &val_bytes[0..std::cmp::min(val_bytes.len(), cell_len)];
+            self.data.extend(
+                val_slice
+                    .into_iter()
+                    .copied()
+                    .chain(std::iter::repeat(0u8).take(cell_len - val_slice.len())),
+            );
+        }
+        self.len += 1;
+    }
+    pub fn to_vec(self) -> Vec<u8> {
+        self.data
+    }
+}
+
+pub fn mem_proc_id_setup(
+    cell_len_bits: u32,
+    align_bits: u32,
+    mem_address_end_pos: u64,
+    proc_id_end_pos: u64,
+) -> Vec<u8> {
+    assert!(align_bits + cell_len_bits >= 3);
+    assert_ne!(mem_address_end_pos, 0);
+    assert_ne!(proc_id_end_pos, 0);
+    let mut out = CellVec::new(cell_len_bits);
+    let max_value = (1u64 << (1 << cell_len_bits)) - 1;
+    for value in [mem_address_end_pos, proc_id_end_pos] {
+        let mut count = value;
+        while count != 0 {
+            let dec = std::cmp::min(max_value, count);
+            // store
+            out.push(dec);
+            count -= dec;
+        }
+        out.push(0);
+    }
+    let mut out = out.to_vec();
+    let align_bits = align_bits + cell_len_bits - 3;
+    let align = 1usize << align_bits;
+    let align_mask = align - 1;
+    if (out.len() & align_mask) != 0 {
+        out.resize(((out.len() >> align_bits) + 1) << align_bits, 0u8);
+    }
+    out
+}
+
+//
+
 pub fn extend_output_state(state_start: usize, extra_bits: usize, input: &mut InfParInputSys) {
     assert!(state_start <= input.state.bitnum());
     if state_start + extra_bits > input.state.bitnum() {
