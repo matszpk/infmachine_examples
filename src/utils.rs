@@ -1,6 +1,7 @@
 use gategen::boolvar::*;
 use gategen::dynintvar::*;
 use gategen::intvar::*;
+use infmachine_config::*;
 use infmachine_gen::*;
 
 use std::fmt::Debug;
@@ -142,6 +143,30 @@ pub fn finish_stage_with_table(
     let final_state = output_state.concat(dynint_table_partial(stage, output_stages, last));
     let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
     (join_stage(next_state, output, end.clone()), end)
+}
+
+pub fn finish_machine_with_table(
+    mobj: InfParMachineObjectSys,
+    input: &InfParInputSys,
+    mut output_stages: Vec<InfParOutputSys>,
+    stage: UDynVarSys,
+) -> InfParMachineDataSys {
+    let mut mobj = mobj;
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let output_stages = output_stages
+        .into_iter()
+        .map(|v| {
+            let state_int = v.to_dynintvar();
+            state_int.subvalue(0, state_int.bitnum())
+        })
+        .collect::<Vec<_>>();
+    let last = UDynVarSys::from_n(0u8, output_stages[0].bitnum());
+    // Use output state outside joining outputs to reduce gates. It is possible because
+    // first outputs are state outputs.
+    let final_state = dynint_table_partial(stage, output_stages, last);
+    mobj.in_state = Some(input.state.clone());
+    mobj.from_dynintvar(final_state);
+    mobj.to_machine()
 }
 
 // install external outputs in stage.
