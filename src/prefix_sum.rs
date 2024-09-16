@@ -101,19 +101,19 @@ fn gen_prefix_sum(
     // no_first = 0 - in state.
     // 0. Init memory and proc end pos.
     // 1. Move mem data to start.
-    // 2. Initialize memory address = proc_id
+    // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
     // 4. Load data from memory.
     // 5. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[first])
     //    state_carry &= carry
-    // 6. Load memory data to state (arg1)
+    // 6. Load memory data to state (arg1).
     // 7. If state_carry: cell = cell + arg1.
-    // 8. If not no_first: temp_buffer[sub] <<= 1.
-    // 9.  Set no_first = 1.
-    //     Check if temp_buffer[sub] = end: if yes then: go to 10 otherwise go to 4.
-    // 10. Initialize memory address = proc_id
-    // 11. Store cell to mem_address.
+    // 8. Swap temp_buffer[orig] and mem_address.
+    // 9. Store cell to memory.
+    // 10. If not no_first: temp_buffer[sub] <<= 1.
+    // 11. Set no_first = 1.
+    //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 4.
     mobj.to_machine().to_toml()
 }
 
