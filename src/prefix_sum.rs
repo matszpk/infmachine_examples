@@ -98,21 +98,22 @@ fn gen_prefix_sum(
         },
     );
     // Main stages:
-    // 1. Load proc_id to mem address
-    // 2. Move back position to start
-    // 3. Read main value and to store value in state.
-    // 4. Main algorithm. N iterations, i - itetation, N - proc_num_bits:
-    // 4.1. Calculate addr_sub_bit: if (i > 0) { i - 1 } else { 0 }.
-    // 4.2. Subtract (1 << addr_sub_bit) from memory address.
-    // 4.2.1. Move position to addr_sub_bit / data_part_len.
-    // 4.2.2. Subtract bit from mem_address_part and store mem_address_part.
-    // 4.2.3. Subtract old carry from mem_address_part and store mem_address_part.
-    // 4.2.4. Move back position to start
-    // 4.3. If no carry ((1 << addr_sub_bit) < mem_addres) then skip all iterations.
-    // 4.4. Read value of this address.
-    // 4.5. Add to state_value and store into state_value.
-    // 5. Load proc_id to mem address
-    // 6. Store state_value into memory.
+    // no_first = 0 - in state.
+    // 0. Init memory and proc end pos.
+    // 1. Move mem data to start.
+    // 2. Initialize memory address = proc_id
+    // 3. Initialize temp_buffer[sub] = 1 and temp_buffer[carry] = 0.
+    // 4. Load data from memory.
+    // 5. Do: mem_address = mem_address - temp_buffer[sub]
+    //    if carry (if mem_address >= temp_buffer[first])
+    //    temp_buffer[carry] &= carry
+    // 6. Load memory data to state (arg1)
+    // 7. If temp_buffer[carry]: cell = cell + arg1.
+    // 8. If not no_first: temp_buffer[sub] <<= 1.
+    // 9.  Set no_first = 1.
+    //     Check if temp_buffer[sub] = end: if yes then: go to 10 otherwise go to 4.
+    // 10. Initialize memory address = proc_id
+    // 11. Store cell to mem_address.
     mobj.to_machine().to_toml()
 }
 
