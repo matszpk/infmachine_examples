@@ -121,7 +121,7 @@ impl CellVec {
     }
 }
 
-pub fn mem_proc_id_setup(
+pub fn mem_address_proc_id_setup(
     cell_len_bits: u32,
     align_bits: u32,
     mem_address_end_pos: u64,
@@ -131,7 +131,9 @@ pub fn mem_proc_id_setup(
     assert_ne!(mem_address_end_pos, 0);
     assert_ne!(proc_id_end_pos, 0);
     let mut out = CellVec::new(cell_len_bits);
-    let max_value = (1u64 << (1 << cell_len_bits)) - 1;
+    // cut cell_len_bits to max bits of these function's arguments (in this case 6 -> 64).
+    let cell_len_bits_cut = std::cmp::min(6, cell_len_bits);
+    let max_value = u64::try_from((1u128 << (1 << cell_len_bits_cut)) - 1).unwrap();
     for value in [mem_address_end_pos, proc_id_end_pos] {
         let mut count = value;
         while count != 0 {
@@ -3108,4 +3110,120 @@ pub fn mem_data_to_start(
     let outputs = vec![output_0, output_1, output_2, output_3, output_4, output_5];
     // finish generation
     finish_stage_with_table(output_state, next_state, input, outputs, stage.into(), end)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mem_address_proc_id_setup() {
+        // 1-bit cell
+        assert_eq!(
+            vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b00111111],
+            mem_address_proc_id_setup(0, 3, 18, 27)
+        );
+        assert_eq!(
+            vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b01111111],
+            mem_address_proc_id_setup(0, 3, 18, 28)
+        );
+        assert_eq!(
+            vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b01111111, 0, 0],
+            mem_address_proc_id_setup(0, 5, 18, 28)
+        );
+        assert_eq!(
+            vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b11111111, 0],
+            mem_address_proc_id_setup(0, 3, 18, 29)
+        );
+        // 2-bit cell
+        assert_eq!(
+            vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001],
+            mem_address_proc_id_setup(1, 2, 17, 28)
+        );
+        assert_eq!(
+            vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001, 0],
+            mem_address_proc_id_setup(1, 3, 17, 28)
+        );
+        assert_eq!(
+            vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001, 0, 0, 0],
+            mem_address_proc_id_setup(1, 4, 17, 28)
+        );
+        // 4-bit cell
+        assert_eq!(
+            vec![0x2f, 0xf0, 0xd],
+            mem_address_proc_id_setup(2, 1, 17, 28)
+        );
+        assert_eq!(
+            vec![0x2f, 0xf0, 0xd, 0],
+            mem_address_proc_id_setup(2, 2, 17, 28)
+        );
+        assert_eq!(
+            vec![0xff, 0x4f, 0xf0, 0xff, 0xff, 0x5],
+            mem_address_proc_id_setup(2, 1, 49, 80)
+        );
+        assert_eq!(
+            vec![0xff, 0x4f, 0xf0, 0xff, 0xff, 0x5, 0, 0],
+            mem_address_proc_id_setup(2, 3, 49, 80)
+        );
+        // 4-bit cell
+        assert_eq!(vec![17, 0, 28, 0], mem_address_proc_id_setup(3, 0, 17, 28));
+        assert_eq!(
+            vec![17, 0, 28, 0, 0, 0, 0, 0],
+            mem_address_proc_id_setup(3, 3, 17, 28)
+        );
+        // 8-bit cell
+        assert_eq!(
+            vec![255, 255, 241, 0, 255, 255, 255, 255, 141, 0],
+            mem_address_proc_id_setup(3, 0, 751, 1161)
+        );
+        assert_eq!(
+            vec![255, 255, 241, 0, 255, 255, 255, 255, 141, 0, 0, 0],
+            mem_address_proc_id_setup(3, 2, 751, 1161)
+        );
+        // 16-bit cell
+        assert_eq!(
+            vec![0xef, 2, 0, 0, 0x89, 4, 0, 0],
+            mem_address_proc_id_setup(4, 0, 751, 1161)
+        );
+        assert_eq!(
+            vec![0xef, 2, 0, 0, 0x89, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            mem_address_proc_id_setup(4, 3, 751, 1161)
+        );
+        assert_eq!(
+            vec![
+                255, 255, 255, 255, 255, 255, 255, 255, 0xaf, 0x32, 0, 0, 255, 255, 255, 255, 255,
+                255, 0xa2, 0x3a, 0, 0
+            ],
+            mem_address_proc_id_setup(4, 0, 275115, 211615)
+        );
+        assert_eq!(
+            vec![
+                255, 255, 255, 255, 255, 255, 255, 255, 0xaf, 0x32, 0, 0, 255, 255, 255, 255, 255,
+                255, 0xa2, 0x3a, 0, 0, 0, 0
+            ],
+            mem_address_proc_id_setup(4, 2, 275115, 211615)
+        );
+        // 32-bit cell
+        assert_eq!(
+            vec![0xab, 0x32, 0x4, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0, 0, 0],
+            mem_address_proc_id_setup(5, 0, 275115, 211615)
+        );
+        // 64-bit cell
+        assert_eq!(
+            vec![
+                0xab, 0x32, 0x4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ],
+            mem_address_proc_id_setup(6, 0, 275115, 211615)
+        );
+        // 128-bit cell
+        assert_eq!(
+            vec![
+                0xab, 0x32, 0x4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            mem_address_proc_id_setup(7, 0, 275115, 211615)
+        );
+    }
 }
