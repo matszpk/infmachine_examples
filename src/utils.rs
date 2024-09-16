@@ -205,12 +205,12 @@ pub fn gen_label(place: &str, id: usize, label: &str) -> String {
     format!("{}_{}:{}", place, id, label)
 }
 
-pub struct TwoPasser {
+pub struct LabelHandler {
     second_pass: bool,
     map: HashMap<String, Option<u64>>,
 }
 
-impl TwoPasser {
+impl LabelHandler {
     pub fn next_pass() {}
     pub fn add_label(name: &str) {}
     pub fn set_label(name: &str, pos: u64) {}
