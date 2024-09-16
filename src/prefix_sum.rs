@@ -102,13 +102,13 @@ fn gen_prefix_sum(
     // 0. Init memory and proc end pos.
     // 1. Move mem data to start.
     // 2. Initialize memory address = proc_id
-    // 3. Initialize temp_buffer[sub] = 1 and temp_buffer[carry] = 0.
+    // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
     // 4. Load data from memory.
     // 5. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[first])
-    //    temp_buffer[carry] &= carry
+    //    state_carry &= carry
     // 6. Load memory data to state (arg1)
-    // 7. If temp_buffer[carry]: cell = cell + arg1.
+    // 7. If state_carry: cell = cell + arg1.
     // 8. If not no_first: temp_buffer[sub] <<= 1.
     // 9.  Set no_first = 1.
     //     Check if temp_buffer[sub] = end: if yes then: go to 10 otherwise go to 4.
