@@ -689,18 +689,13 @@ fn gen_process_proc_id_to_mem_address_ext_out_test(
         temp_buffer_step,
         func,
     );
-    output_2.state = UDynVarSys::from_iter((0..output_2.state.bitnum()).map(|i| {
-        if i == 2 {
-            // install this ext_outputs bit to state
-            bool_ite(
-                ext_out_set.clone(),
-                ext_out[ext_out_index].bit(ext_out_bit),
-                mach_input.state.bit(i),
-            )
-        } else {
-            output_2.state.bit(i)
-        }
-    }));
+    output_2 = install_external_outputs(
+        output_2,
+        2,
+        &mach_input.state,
+        UDynVarSys::filled(1, ext_out[ext_out_index].bit(ext_out_bit)),
+        ext_out_set,
+    );
     // stop stage
     let mut output_3 = InfParOutputSys::new(config);
     output_3.state = mach_input.state.clone();
