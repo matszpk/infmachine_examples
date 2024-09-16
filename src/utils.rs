@@ -4,6 +4,7 @@ use gategen::intvar::*;
 use infmachine_config::*;
 use infmachine_gen::*;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::{BitAnd, BitOr, BitXor};
 
@@ -196,6 +197,17 @@ pub fn install_external_outputs(
         }
     }));
     output
+}
+
+// TwoPasser - object that handle jumps between stages
+
+pub fn gen_label(place: &str, id: usize, label: &str) -> String {
+    format!("{}_{}:{}", place, id, label)
+}
+
+pub struct TwoPasser {
+    second_pass: bool,
+    map: HashMap<String, u64>,
 }
 
 // function form: f(output_state, UDynVarSys, state_start: usize, in_output: &InfParOutputSys)
