@@ -207,7 +207,16 @@ pub fn gen_label(place: &str, id: usize, label: &str) -> String {
 
 pub struct TwoPasser {
     second_pass: bool,
-    map: HashMap<String, u64>,
+    map: HashMap<String, Option<u64>>,
+}
+
+impl TwoPasser {
+    pub fn next_pass() {}
+    pub fn add_label(name: &str) {}
+    pub fn set_label(name: &str, pos: u64) {}
+    pub fn label(name: &str) -> u64 {
+        0
+    }
 }
 
 // function form: f(output_state, UDynVarSys, state_start: usize, in_output: &InfParOutputSys)
