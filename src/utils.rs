@@ -211,11 +211,39 @@ pub struct LabelHandler {
 }
 
 impl LabelHandler {
-    pub fn next_pass() {}
-    pub fn add_label(name: &str) {}
-    pub fn set_label(name: &str, pos: u64) {}
-    pub fn label(name: &str) -> u64 {
-        0
+    pub fn new() -> Self {
+        Self {
+            second_pass: false,
+            map: HashMap::new(),
+        }
+    }
+    pub fn next_pass(&mut self) {
+        self.second_pass = true;
+    }
+    pub fn add_label(&mut self, name: &str) {
+        if !self.second_pass {
+            self.map.insert(name.to_string(), None);
+        }
+    }
+    pub fn set_label(&mut self, name: &str, pos: u64) {
+        if !self.second_pass {
+            if let Some(v) = self.map.get_mut(name) {
+                if v.is_none() {
+                    *v = Some(pos);
+                } else {
+                    panic!("Label {} already set", name);
+                }
+            } else {
+                panic!("Label {} doesn't exist", name);
+            }
+        }
+    }
+    pub fn label(&mut self, name: &str) -> u64 {
+        if self.second_pass {
+            self.map[name].unwrap()
+        } else {
+            0
+        }
     }
 }
 
