@@ -111,8 +111,9 @@ fn gen_prefix_sum(
     // 7. If state_carry: cell = cell + arg1.
     // 8. Swap temp_buffer[orig] and mem_address.
     // 9. Store cell to memory.
-    // 10. If not no_first: temp_buffer[sub] <<= 1.
-    // 11. Set no_first = 1.
+    // 10. Swap temp_buffer[orig] and mem_address.
+    // 11. If not no_first: temp_buffer[sub] <<= 1.
+    // 12. Set no_first = 1.
     //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 4.
     mobj.to_machine().to_toml()
 }
