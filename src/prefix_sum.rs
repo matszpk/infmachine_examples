@@ -91,19 +91,21 @@ impl PrefixOpState {
 
 struct Copy1NAndSet1Func {
     copy1n: Copy1NFunc,
+    one0: One0Func,
 }
 
 impl Copy1NAndSet1Func {
-    fn new(n: usize) -> Self {
+    fn new(n: usize, len: usize) -> Self {
         Self {
             copy1n: Copy1NFunc::new(n),
+            one0: One0Func::new(len),
         }
     }
 }
 
 impl FunctionNN for Copy1NAndSet1Func {
     fn state_len(&self) -> usize {
-        1
+        self.one0.state_len()
     }
     fn input_num(&self) -> usize {
         self.copy1n.input_num()
@@ -116,14 +118,11 @@ impl FunctionNN for Copy1NAndSet1Func {
         state: UDynVarSys,
         inputs: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
-        let len = inputs[0].bitnum();
-        let (_, mut out, ext_outs) = self.copy1n.output(UDynVarSys::var(0), inputs);
-        out.push(dynint_ite(
-            !state.bit(0),
-            UDynVarSys::from_n(1u8, len),
-            UDynVarSys::from_n(0u8, len),
-        ));
-        (UDynVarSys::from_n(1u8, 1), out, vec![])
+        let (_, mut out, mut ext_outs) = self.copy1n.output(UDynVarSys::var(0), inputs);
+        let (next_state, one_out, one_ext_outs) = self.one0.output(state);
+        out.push(one_out);
+        ext_outs.extend(one_ext_outs);
+        (next_state, out, ext_outs)
     }
 }
 
@@ -184,7 +183,7 @@ fn gen_prefix_op(
             (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
             (InfDataParam::TempBuffer(sub_field), END_POS_MEM_ADDRESS),
         ],
-        Copy1NAndSet1Func::new(2),
+        Copy1NAndSet1Func::new(2, data_part_len as usize),
     );
     // 3. Load data from memory.
     // 4. Do: mem_address = mem_address - temp_buffer[sub]
