@@ -135,8 +135,8 @@ fn gen_prefix_op(
     );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     let (output_2, _, _, _) = par_process_infinite_data_stage(
-        input_state.clone().stage_val(1).to_var(),
         input_state.clone().stage_val(2).to_var(),
+        input_state.clone().stage_val(3).to_var(),
         &mut mach_input,
         temp_buffer_step,
         &[(InfDataParam::ProcId, END_POS_PROC_ID)],
