@@ -6,6 +6,9 @@ use infmachine_gen::*;
 
 use std::env;
 
+pub mod utils;
+use utils::*;
+
 const fn calc_log_bits(n: usize) -> usize {
     let nbits = usize::BITS - n.leading_zeros();
     if (1 << (nbits - 1)) == n {
@@ -107,24 +110,27 @@ fn gen_prefix_op(
             max_temp_buffer_len: max_proc_num_bits,
         },
     );
+    let (field_start, temp_buffer_step) = temp_buffer_first_field(data_part_len, 0, 2);
+    let orig_field = field_start;
+    let sub_field = orig_field + 1;
     mobj.in_state = Some(UDynVarSys::var(PrefixOpState::len(cell_len)));
     let mut mach_input = mobj.input();
     let input_state = PrefixOpState::new(cell_len, &mach_input.state);
     // Main stages:
     // no_first = 0 - in state.
     // 0. Init memory and proc end pos.
-    // let (output_1, _) = init_machine_end_pos_stage(
-    //     input_state.stage_val(0),
-    //     input_state.stage_val(1),
-    //     &mut mach_input,
-    //     temp_buffer_step,
-    // );
+    let (output_1, _) = init_machine_end_pos_stage(
+        input_state.clone().stage_val(0).to_var(),
+        input_state.clone().stage_val(1).to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+    );
     // 1. Move mem data to start.
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
     // 4. Load data from memory.
     // 5. Do: mem_address = mem_address - temp_buffer[sub]
-    //    if carry (if mem_address >= temp_buffer[first])
+    //    if carry (if mem_address >= temp_buffer[sub])
     //    state_carry &= carry
     // 6. Load memory data to state (arg1).
     // 7. If state_carry: cell = cell + arg1.

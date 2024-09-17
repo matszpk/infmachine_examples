@@ -711,10 +711,10 @@ pub const END_POS_PROC_ID: u32 = 1;
 
 // returns field_start and temp_buffer_step (length)
 pub fn temp_buffer_first_field(
-    data_part_len: usize,
-    extra_end_pos_num: usize,
-    field_num: usize,
-) -> (usize, usize) {
+    data_part_len: u32,
+    extra_end_pos_num: u32,
+    field_num: u32,
+) -> (u32, u32) {
     let field_start = ((2 + extra_end_pos_num) + data_part_len - 1) / data_part_len;
     (field_start, field_start + field_num)
 }
