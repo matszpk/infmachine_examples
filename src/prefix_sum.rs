@@ -119,21 +119,33 @@ fn gen_prefix_op(
     // Main stages:
     // no_first = 0 - in state.
     // 0. Init memory and proc end pos.
-    let (output_1, _) = init_machine_end_pos_stage(
+    let (output_0, _) = init_machine_end_pos_stage(
         input_state.clone().stage_val(0).to_var(),
         input_state.clone().stage_val(1).to_var(),
         &mut mach_input,
         temp_buffer_step,
     );
     // 1. Move mem data to start.
-    let (output_2, _) = mem_data_to_start(
+    let (output_1, _) = mem_data_to_start(
+        input_state.clone().stage_val(1).to_var(),
         input_state.clone().stage_val(2).to_var(),
-        input_state.clone().stage_val(3).to_var(),
         &mut mach_input,
         temp_buffer_step,
         1,
     );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
+    let (output_2, _, _, _) = par_process_infinite_data_stage(
+        input_state.clone().stage_val(1).to_var(),
+        input_state.clone().stage_val(2).to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+        &[(InfDataParam::ProcId, END_POS_PROC_ID)],
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+        ],
+        Copy1NFunc::new(2),
+    );
     // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
     // 4. Load data from memory.
     // 5. Do: mem_address = mem_address - temp_buffer[sub]

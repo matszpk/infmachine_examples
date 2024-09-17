@@ -1482,6 +1482,41 @@ impl Function2 for Sub2Func {
 
 //
 
+pub struct Copy1NFunc {
+    n: usize,
+}
+
+impl Copy1NFunc {
+    pub fn new(n: usize) -> Self {
+        Self { n }
+    }
+}
+
+impl FunctionNN for Copy1NFunc {
+    fn state_len(&self) -> usize {
+        0
+    }
+    fn input_num(&self) -> usize {
+        1
+    }
+    fn output_num(&self) -> usize {
+        self.n
+    }
+    fn output(
+        &self,
+        _: UDynVarSys,
+        i0: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        (
+            UDynVarSys::var(0),
+            (0..self.n).map(|_| i0[0].clone()).collect::<Vec<_>>(),
+            vec![],
+        )
+    }
+}
+
+//
+
 pub struct XorNNFuncSample {
     inout_len: usize,
     input_num: usize,
