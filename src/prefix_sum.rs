@@ -89,6 +89,44 @@ impl PrefixOpState {
     }
 }
 
+struct Copy1NAndSet1Func {
+    copy1n: Copy1NFunc,
+}
+
+impl Copy1NAndSet1Func {
+    fn new(n: usize) -> Self {
+        Self {
+            copy1n: Copy1NFunc::new(n),
+        }
+    }
+}
+
+impl FunctionNN for Copy1NAndSet1Func {
+    fn state_len(&self) -> usize {
+        1
+    }
+    fn input_num(&self) -> usize {
+        self.copy1n.input_num()
+    }
+    fn output_num(&self) -> usize {
+        self.copy1n.output_num() + 1
+    }
+    fn output(
+        &self,
+        state: UDynVarSys,
+        i0: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let len = i0[0].bitnum();
+        let (_, mut out, ext_outs) = self.copy1n.output(UDynVarSys::var(0), i0);
+        out.push(dynint_ite(
+            !state.bit(0),
+            UDynVarSys::from_n(1u8, len),
+            UDynVarSys::from_n(0u8, len),
+        ));
+        (UDynVarSys::from_n(1u8, 1), out, vec![])
+    }
+}
+
 fn gen_prefix_op(
     cell_len_bits: u32,
     data_part_len: u32,
@@ -134,6 +172,7 @@ fn gen_prefix_op(
         1,
     );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
+    //    Initialize temp_buffer[sub] = 1
     let (output_2, _, _, _) = par_process_infinite_data_stage(
         input_state.clone().stage_val(2).to_var(),
         input_state.clone().stage_val(3).to_var(),
@@ -143,10 +182,11 @@ fn gen_prefix_op(
         &[
             (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
             (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(sub_field), END_POS_MEM_ADDRESS),
         ],
-        Copy1NFunc::new(2),
+        Copy1NAndSet1Func::new(2),
     );
-    // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
+    // 3. State_carry = 1.
     // 4. Load data from memory.
     // 5. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[sub])
