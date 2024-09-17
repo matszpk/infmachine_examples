@@ -232,7 +232,26 @@ fn gen_prefix_op(
         .cell(op(input_state.cell.clone(), mach_input.memval.clone()))
         .to_var();
     // 7. Swap temp_buffer[orig] and mem_address.
+    let (output_7_9, _, _, _) = par_process_infinite_data_stage(
+        input_state.clone().to_var(),
+        input_state.clone().stage(&input_state.stage + 1u8).to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+        ],
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+        ],
+        FuncNNAdapter2_2::from(Swap2Func::new()),
+    );
     // 8. Store cell to memory.
+    let mut output_8 = InfParOutputSys::new(config);
+    output_8.state = input_state.clone().stage_val(9).to_var();
+    output_8.memw = true.into();
+    output_8.memval = input_state.cell.clone();
     // 9. Swap temp_buffer[orig] and mem_address.
     // 10. If not no_first: temp_buffer[sub] <<= 1.
     // 11. Set no_first = 1.

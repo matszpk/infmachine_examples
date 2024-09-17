@@ -1603,6 +1603,30 @@ impl FunctionNN for Copy1NFunc {
 
 //
 
+pub struct Swap2Func {}
+
+impl Swap2Func {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Function2_2 for Swap2Func {
+    fn state_len(&self) -> usize {
+        0
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        i0: UDynVarSys,
+        i1: UDynVarSys,
+    ) -> (UDynVarSys, UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
+        (UDynVarSys::var(0), i1, i0, vec![])
+    }
+}
+
+//
+
 pub struct XorNNFuncSample {
     inout_len: usize,
     input_num: usize,
