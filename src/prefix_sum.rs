@@ -34,10 +34,10 @@ struct PrefixOpState {
 }
 
 impl PrefixOpState {
-    fn new(cell_len: usize, stage: U4VarSys, input_state: &UDynVarSys) -> Self {
+    fn new(cell_len: usize, stage: u8, input_state: &UDynVarSys) -> Self {
         let v = input_state.subvalues(4, [cell_len, 1, 1, 1]);
         Self {
-            stage,
+            stage: stage.into(),
             cell: v[0].clone(),
             no_first: v[1].bit(0),
             carry: v[2].bit(0),
