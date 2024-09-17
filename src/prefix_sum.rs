@@ -172,10 +172,10 @@ fn gen_prefix_op(
         1,
     );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
-    //    Initialize temp_buffer[sub] = 1
+    //    Initialize temp_buffer[sub] = 1. State_carry = 1.
     let (output_2, _, _, _) = par_process_infinite_data_stage(
         input_state.clone().stage_val(2).to_var(),
-        input_state.clone().stage_val(3).to_var(),
+        input_state.clone().stage_val(3).carry(true.into()).to_var(),
         &mut mach_input,
         temp_buffer_step,
         &[(InfDataParam::ProcId, END_POS_PROC_ID)],
@@ -186,19 +186,18 @@ fn gen_prefix_op(
         ],
         Copy1NAndSet1Func::new(2),
     );
-    // 3. State_carry = 1.
-    // 4. Load data from memory.
-    // 5. Do: mem_address = mem_address - temp_buffer[sub]
+    // 3. Load data from memory.
+    // 4. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[sub])
     //    state_carry &= carry
-    // 6. Load memory data to state (arg1).
-    // 7. If state_carry: cell = cell + arg1.
-    // 8. Swap temp_buffer[orig] and mem_address.
-    // 9. Store cell to memory.
-    // 10. Swap temp_buffer[orig] and mem_address.
-    // 11. If not no_first: temp_buffer[sub] <<= 1.
-    // 12. Set no_first = 1.
-    //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 4.
+    // 5. Load memory data to state (arg1).
+    // 6. If state_carry: cell = cell + arg1.
+    // 7. Swap temp_buffer[orig] and mem_address.
+    // 8. Store cell to memory.
+    // 9. Swap temp_buffer[orig] and mem_address.
+    // 10. If not no_first: temp_buffer[sub] <<= 1.
+    // 11. Set no_first = 1.
+    //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 3.
     mobj.to_machine().to_toml()
 }
 
