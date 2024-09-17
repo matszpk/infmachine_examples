@@ -192,7 +192,7 @@ fn gen_prefix_op(
         ],
         Copy1NAndSet1Func::new(2, data_part_len as usize),
     );
-    // 3. Load data from memory.
+    // 3. Load (original) data from memory
     let mut output_3 = InfParOutputSys::new(config);
     output_3.state = input_state.clone().stage_val(4).to_var();
     output_3.memr = true.into();
@@ -304,9 +304,9 @@ fn gen_prefix_op(
         ext_out_set,
     );
     // 11. Set no_first = 1.
-    //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 3.
+    //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 4.
     let mut output_11 = InfParOutputSys::new(config);
-    output_11.state = input_state.clone().stage_val(3).to_var();
+    output_11.state = input_state.clone().stage_val(4).to_var();
     output_11.stop = input_state.ext_out.clone();
     finish_machine_with_table(
         mobj,
