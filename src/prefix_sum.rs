@@ -24,6 +24,28 @@ const fn calc_log_bits_u64(n: u64) -> usize {
     }
 }
 
+#[derive(Clone)]
+struct PrefixOpState {
+    stage: U4VarSys,
+    cell: UDynVarSys,
+    no_first: BoolVarSys,
+    carry: BoolVarSys,
+    end: BoolVarSys,
+}
+
+impl PrefixOpState {
+    fn new(cell_len: usize, stage: U4VarSys, input_state: &UDynVarSys) -> Self {
+        let v = input_state.subvalues(4, [cell_len, 1, 1, 1]);
+        Self {
+            stage,
+            cell: v[0].clone(),
+            no_first: v[1].bit(0),
+            carry: v[2].bit(0),
+            end: v[3].bit(0),
+        }
+    }
+}
+
 fn gen_prefix_op(
     cell_len_bits: u32,
     data_part_len: u32,
