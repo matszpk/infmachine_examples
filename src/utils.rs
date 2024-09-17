@@ -1505,11 +1505,11 @@ impl FunctionNN for Copy1NFunc {
     fn output(
         &self,
         _: UDynVarSys,
-        i0: &[UDynVarSys],
+        inputs: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
         (
             UDynVarSys::var(0),
-            (0..self.n).map(|_| i0[0].clone()).collect::<Vec<_>>(),
+            (0..self.n).map(|_| inputs[0].clone()).collect::<Vec<_>>(),
             vec![],
         )
     }

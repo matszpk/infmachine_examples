@@ -114,10 +114,10 @@ impl FunctionNN for Copy1NAndSet1Func {
     fn output(
         &self,
         state: UDynVarSys,
-        i0: &[UDynVarSys],
+        inputs: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
-        let len = i0[0].bitnum();
-        let (_, mut out, ext_outs) = self.copy1n.output(UDynVarSys::var(0), i0);
+        let len = inputs[0].bitnum();
+        let (_, mut out, ext_outs) = self.copy1n.output(UDynVarSys::var(0), inputs);
         out.push(dynint_ite(
             !state.bit(0),
             UDynVarSys::from_n(1u8, len),
