@@ -323,6 +323,7 @@ fn gen_prefix_op(
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
+    let op = args.next().unwrap();
     let cell_len_bits: u32 = args.next().unwrap().parse().unwrap();
     let data_part_len: u32 = args.next().unwrap().parse().unwrap();
     let proc_num: u64 = args.next().unwrap().parse().unwrap();
@@ -345,7 +346,26 @@ fn main() {
             data_part_len,
             proc_num,
             max_proc_num_bits,
-            |arg1, arg2| arg1 + arg2
+            match op.as_str() {
+                "add" => |arg1, arg2| arg1 + arg2,
+                "mul" => |arg1, arg2| arg1 * arg2,
+                "and" => |arg1, arg2| arg1 & arg2,
+                "or" => |arg1, arg2| arg1 | arg2,
+                "xor" => |arg1, arg2| arg1 ^ arg2,
+                "min" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
+                    (&arg1).less_than(&arg2),
+                    arg1,
+                    arg2
+                ),
+                "max" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
+                    (&arg1).greater_than(&arg2),
+                    arg1,
+                    arg2
+                ),
+                _ => {
+                    panic!("Unknown op");
+                }
+            }
         )
         .unwrap())
     );
