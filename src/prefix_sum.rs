@@ -33,7 +33,7 @@ struct PrefixOpState {
     cell: UDynVarSys,
     no_first: BoolVarSys,
     carry: BoolVarSys,
-    end: BoolVarSys,
+    ext_out: BoolVarSys,
 }
 
 // State:
@@ -44,13 +44,13 @@ struct PrefixOpState {
 // ext_output - from shifting temp_buffer[sub]
 impl PrefixOpState {
     fn new(cell_len: usize, input_state: &UDynVarSys) -> Self {
-        let v = input_state.subvalues(0, [cell_len, 1, 1, 1]);
+        let v = input_state.subvalues(0, [4, cell_len, 1, 1, 1]);
         Self {
             stage: U4VarSys::try_from(v[0].clone()).unwrap(),
             cell: v[1].clone(),
             no_first: v[2].bit(0),
             carry: v[3].bit(0),
-            end: v[4].bit(0),
+            ext_out: v[4].bit(0),
         }
     }
     fn len(cell_len: usize) -> usize {
@@ -60,7 +60,11 @@ impl PrefixOpState {
     fn to_var(self) -> UDynVarSys {
         UDynVarSys::from(self.stage)
             .concat(self.cell)
-            .concat(UDynVarSys::from_iter([self.no_first, self.carry, self.end]))
+            .concat(UDynVarSys::from_iter([
+                self.no_first,
+                self.carry,
+                self.ext_out,
+            ]))
     }
 
     fn stage(mut self, stage: U4VarSys) -> Self {
@@ -83,9 +87,12 @@ impl PrefixOpState {
         self.carry = carry;
         self
     }
-    fn end(mut self, end: BoolVarSys) -> Self {
-        self.end = end;
+    fn ext_out(mut self, ext_out: BoolVarSys) -> Self {
+        self.ext_out = ext_out;
         self
+    }
+    fn ext_out_pos(&self) -> usize {
+        4 + self.cell.bitnum() + 2
     }
 }
 
@@ -186,11 +193,44 @@ fn gen_prefix_op(
         Copy1NAndSet1Func::new(2, data_part_len as usize),
     );
     // 3. Load data from memory.
+    let mut output_3 = InfParOutputSys::new(config);
+    output_3.state = input_state.clone().stage_val(4).to_var();
+    output_3.memr = true.into();
     // 4. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[sub])
     //    state_carry &= carry
+    let (output_4, _, ext_out_4, ext_out_set_4) =
+        par_process_mem_address_temp_buffer_to_mem_address_stage(
+            input_state.clone().stage_val(4).to_var(),
+            input_state.clone().stage_val(5).to_var(),
+            &mut mach_input,
+            temp_buffer_step,
+            sub_field,
+            false,
+            Sub2Func::new(),
+        );
+    let output_4 = install_external_outputs(
+        output_2,
+        input_state.ext_out_pos(),
+        &mach_input.state,
+        UDynVarSys::filled(1, ext_out_4[0].bit(0)),
+        ext_out_set_4,
+    );
     // 5. Load memory data to state (arg1).
+    let mut output_5 = InfParOutputSys::new(config);
+    output_5.state = input_state
+        .clone()
+        .stage_val(6)
+        .carry(&input_state.carry & &input_state.ext_out)
+        .to_var();
+    output_5.memr = true.into();
     // 6. If state_carry: cell = cell + arg1.
+    let mut output_6 = InfParOutputSys::new(config);
+    output_6.state = input_state
+        .clone()
+        .stage_val(7)
+        .cell(op(input_state.cell.clone(), mach_input.memval.clone()))
+        .to_var();
     // 7. Swap temp_buffer[orig] and mem_address.
     // 8. Store cell to memory.
     // 9. Swap temp_buffer[orig] and mem_address.
