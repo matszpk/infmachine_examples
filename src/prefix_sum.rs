@@ -126,6 +126,13 @@ fn gen_prefix_op(
         temp_buffer_step,
     );
     // 1. Move mem data to start.
+    let (output_2, _) = mem_data_to_start(
+        input_state.clone().stage_val(2).to_var(),
+        input_state.clone().stage_val(3).to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+        1,
+    );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
     // 4. Load data from memory.
