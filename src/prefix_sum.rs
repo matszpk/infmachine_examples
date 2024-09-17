@@ -24,60 +24,6 @@ const fn calc_log_bits_u64(n: u64) -> usize {
     }
 }
 
-#[derive(Clone)]
-struct PrefixSumState {
-    main_stage: U2VarSys,
-    addr_step: UDynVarSys,
-    addr_step_bit: UDynVarSys,
-    stage_step: BoolVarSys,
-    value: UDynVarSys,
-}
-
-impl PrefixSumState {
-    fn new(cell_len_bits: u32, data_part_len: u32, max_proc_num_bits: u32) -> Self {
-        let addr_step_num = (max_proc_num_bits + data_part_len - 1) / data_part_len;
-        let addr_step_len = calc_log_bits(addr_step_num as usize);
-        let addr_step_bit_len = calc_log_bits(data_part_len as usize);
-        Self {
-            main_stage: U2VarSys::default(),
-            addr_step: UDynVarSys::from_n(0u8, addr_step_len),
-            addr_step_bit: UDynVarSys::from_n(0u8, addr_step_bit_len),
-            stage_step: BoolVarSys::from(false),
-            value: UDynVarSys::from_n(0u8, 1 << cell_len_bits),
-        }
-    }
-
-    fn from_dynintvar(
-        cell_len_bits: u32,
-        data_part_len: u32,
-        max_proc_num_bits: u32,
-        state: UDynVarSys,
-    ) -> Self {
-        let addr_step_num = (max_proc_num_bits + data_part_len - 1) / data_part_len;
-        let addr_step_len = calc_log_bits(addr_step_num as usize);
-        let addr_step_bit_len = calc_log_bits(data_part_len as usize);
-        let vars = state.subvalues(
-            0,
-            [2, addr_step_len, addr_step_bit_len, 1, 1 << cell_len_bits],
-        );
-        Self {
-            main_stage: U2VarSys::try_from(vars[0].clone()).unwrap(),
-            addr_step: vars[1].clone(),
-            addr_step_bit: vars[2].clone(),
-            stage_step: vars[3].bit(0),
-            value: vars[3].clone(),
-        }
-    }
-
-    fn to_dynintvar(self) -> UDynVarSys {
-        UDynVarSys::from(self.main_stage)
-            .concat(self.addr_step)
-            .concat(self.addr_step_bit)
-            .concat(UDynVarSys::filled(1, self.stage_step))
-            .concat(self.value)
-    }
-}
-
 fn gen_prefix_op(
     cell_len_bits: u32,
     data_part_len: u32,
@@ -98,6 +44,12 @@ fn gen_prefix_op(
             max_temp_buffer_len: max_proc_num_bits,
         },
     );
+    // State:
+    // stage - stage to execute
+    // cell - loaded memory
+    // carry - carry from subtraction from memory address (conjunction)
+    // no_first - if first phase
+    // ext_output - from shifting temp_buffer[sub]
     // Main stages:
     // no_first = 0 - in state.
     // 0. Init memory and proc end pos.
