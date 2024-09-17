@@ -199,7 +199,7 @@ fn gen_prefix_op(
     // 4. Do: mem_address = mem_address - temp_buffer[sub]
     //    if carry (if mem_address >= temp_buffer[sub])
     //    state_carry &= carry
-    let (output_4, _, ext_out_4, ext_out_set_4) =
+    let (output_4, _, ext_out, ext_out_set) =
         par_process_mem_address_temp_buffer_to_mem_address_stage(
             input_state.clone().stage_val(4).to_var(),
             input_state.clone().stage_val(5).to_var(),
@@ -210,11 +210,11 @@ fn gen_prefix_op(
             Sub2Func::new(),
         );
     let output_4 = install_external_outputs(
-        output_2,
+        output_4,
         input_state.ext_out_pos(),
         &mach_input.state,
-        UDynVarSys::filled(1, ext_out_4[0].bit(0)),
-        ext_out_set_4,
+        UDynVarSys::filled(1, ext_out[0].bit(0)),
+        ext_out_set,
     );
     // 5. Load memory data to state (arg1).
     let mut output_5 = InfParOutputSys::new(config);
@@ -229,12 +229,19 @@ fn gen_prefix_op(
     output_6.state = input_state
         .clone()
         .stage_val(7)
-        .cell(op(input_state.cell.clone(), mach_input.memval.clone()))
+        .cell(
+            // if state_carry == 1 then do it
+            dynint_ite(
+                input_state.carry.clone(),
+                op(input_state.cell.clone(), mach_input.memval.clone()),
+                input_state.cell.clone(),
+            ),
+        )
         .to_var();
     // 7. Swap temp_buffer[orig] and mem_address.
-    let (output_7_9, _, _, _) = par_process_infinite_data_stage(
-        input_state.clone().to_var(),
-        input_state.clone().stage(&input_state.stage + 1u8).to_var(),
+    let (output_7, _, _, _) = par_process_infinite_data_stage(
+        input_state.clone().stage_val(7).to_var(),
+        input_state.clone().stage_val(8).to_var(),
         &mut mach_input,
         temp_buffer_step,
         &[
@@ -253,10 +260,64 @@ fn gen_prefix_op(
     output_8.memw = true.into();
     output_8.memval = input_state.cell.clone();
     // 9. Swap temp_buffer[orig] and mem_address.
-    // 10. If not no_first: temp_buffer[sub] <<= 1.
+    let (output_9, _, _, _) = par_process_infinite_data_stage(
+        input_state.clone().stage_val(9).to_var(),
+        input_state
+            .clone()
+            .stage(int_ite(
+                input_state.no_first.clone(),
+                // do next step
+                U4VarSys::from(10u8),
+                // skip next step if first
+                U4VarSys::from(11u8),
+            ))
+            .to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+        ],
+        &[
+            (InfDataParam::MemAddress, END_POS_MEM_ADDRESS),
+            (InfDataParam::TempBuffer(orig_field), END_POS_MEM_ADDRESS),
+        ],
+        FuncNNAdapter2_2::from(Swap2Func::new()),
+    );
+    // 10. If no_first: temp_buffer[sub] <<= 1.
+    let (output_10, _, ext_out, ext_out_set) = par_process_temp_buffer_to_temp_buffer_stage(
+        input_state.clone().stage_val(10).to_var(),
+        input_state.clone().stage_val(11).to_var(),
+        &mut mach_input,
+        temp_buffer_step,
+        sub_field,
+        sub_field,
+        false,
+        false,
+        Shl1Func::new(data_part_len as usize, 1),
+    );
+    let output_10 = install_external_outputs(
+        output_10,
+        input_state.ext_out_pos(),
+        &mach_input.state,
+        UDynVarSys::filled(1, ext_out[0].bit(0)),
+        ext_out_set,
+    );
     // 11. Set no_first = 1.
     //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 3.
-    mobj.to_machine().to_toml()
+    let mut output_11 = InfParOutputSys::new(config);
+    output_11.state = input_state.clone().stage_val(3).to_var();
+    output_11.stop = input_state.ext_out.clone();
+    finish_machine_with_table(
+        mobj,
+        &mach_input,
+        vec![
+            output_0, output_1, output_2, output_3, output_4, output_5, output_6, output_7,
+            output_8, output_9, output_10, output_11,
+        ],
+        input_state.stage.into(),
+    )
+    .to_toml()
 }
 
 fn main() {

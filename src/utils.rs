@@ -824,7 +824,7 @@ impl<F: Function0> FunctionNN for FuncNNAdapter0<F> {
     fn output(
         &self,
         input_state: UDynVarSys,
-        inputs: &[UDynVarSys],
+        _: &[UDynVarSys],
     ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
         let (out_state, output, ext_outputs) = self.f.output(input_state);
         (out_state, vec![output], ext_outputs)
@@ -1617,7 +1617,7 @@ impl Function2_2 for Swap2Func {
     }
     fn output(
         &self,
-        input_state: UDynVarSys,
+        _: UDynVarSys,
         i0: UDynVarSys,
         i1: UDynVarSys,
     ) -> (UDynVarSys, UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
