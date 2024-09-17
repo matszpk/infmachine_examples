@@ -721,6 +721,12 @@ pub fn temp_buffer_first_field(
 
 // functions
 
+pub trait Function0 {
+    fn state_len(&self) -> usize;
+    // return (output state, output, external_outputs)
+    fn output(&self, input_state: UDynVarSys) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>);
+}
+
 pub trait Function1 {
     fn state_len(&self) -> usize;
     // return (output state, output, external_outputs)
@@ -765,6 +771,16 @@ pub trait FunctionNN {
     ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>);
 }
 
+pub struct FuncNNAdapter0<F: Function0> {
+    f: F,
+}
+
+impl<F: Function0> From<F> for FuncNNAdapter0<F> {
+    fn from(f: F) -> Self {
+        Self { f }
+    }
+}
+
 pub struct FuncNNAdapter1<F: Function1> {
     f: F,
 }
@@ -792,6 +808,26 @@ pub struct FuncNNAdapter2_2<F: Function2_2> {
 impl<F: Function2_2> From<F> for FuncNNAdapter2_2<F> {
     fn from(f: F) -> Self {
         Self { f }
+    }
+}
+
+impl<F: Function0> FunctionNN for FuncNNAdapter0<F> {
+    fn state_len(&self) -> usize {
+        self.f.state_len()
+    }
+    fn input_num(&self) -> usize {
+        0
+    }
+    fn output_num(&self) -> usize {
+        1
+    }
+    fn output(
+        &self,
+        input_state: UDynVarSys,
+        inputs: &[UDynVarSys],
+    ) -> (UDynVarSys, Vec<UDynVarSys>, Vec<UDynVarSys>) {
+        let (out_state, output, ext_outputs) = self.f.output(input_state);
+        (out_state, vec![output], ext_outputs)
     }
 }
 
@@ -856,6 +892,56 @@ impl<F: Function2_2> FunctionNN for FuncNNAdapter2_2<F> {
             self.f
                 .output(input_state, inputs[0].clone(), inputs[1].clone());
         (out_state, vec![output, output2], ext_outputs)
+    }
+}
+
+pub struct Zero0Func {
+    inout_len: usize,
+}
+
+impl Zero0Func {
+    pub fn new(inout_len: usize) -> Self {
+        Self { inout_len }
+    }
+}
+
+impl Function0 for Zero0Func {
+    fn state_len(&self) -> usize {
+        0
+    }
+    fn output(&self, _: UDynVarSys) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
+        (
+            UDynVarSys::var(0),
+            UDynVarSys::from_n(0u8, self.inout_len),
+            vec![],
+        )
+    }
+}
+
+pub struct One0Func {
+    inout_len: usize,
+}
+
+impl One0Func {
+    pub fn new(inout_len: usize) -> Self {
+        Self { inout_len }
+    }
+}
+
+impl Function0 for One0Func {
+    fn state_len(&self) -> usize {
+        1
+    }
+    fn output(&self, state: UDynVarSys) -> (UDynVarSys, UDynVarSys, Vec<UDynVarSys>) {
+        (
+            UDynVarSys::from_n(1u8, 1),
+            dynint_ite(
+                !state.bit(0),
+                UDynVarSys::from_n(1u8, self.inout_len),
+                UDynVarSys::from_n(0u8, self.inout_len),
+            ),
+            vec![],
+        )
     }
 }
 
@@ -1685,6 +1771,51 @@ pub fn par_copy_temp_buffer_to_temp_buffer_stage(
 }
 
 // process routines
+
+pub fn par_process_to_temp_buffer_stage<F: Function0>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    temp_buffer_step_pos: u32,
+    proc_id_end_pos: bool,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[],
+        &[(
+            InfDataParam::TempBuffer(temp_buffer_step_pos),
+            if proc_id_end_pos {
+                END_POS_PROC_ID
+            } else {
+                END_POS_MEM_ADDRESS
+            },
+        )],
+        FuncNNAdapter0::from(func),
+    )
+}
+
+pub fn par_process_to_mem_address_stage<F: Function0>(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    func: F,
+) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
+    par_process_infinite_data_stage(
+        output_state,
+        next_state,
+        input,
+        temp_buffer_step,
+        &[],
+        &[(InfDataParam::MemAddress, END_POS_MEM_ADDRESS)],
+        FuncNNAdapter0::from(func),
+    )
+}
 
 // par_process_proc_id_to_temp_buffer_stage - process proc_id to temp buffer in specified pos.
 // temp_buffer_step_pos - position chunk (specify data position).
