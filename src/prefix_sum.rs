@@ -24,7 +24,7 @@ const fn calc_log_bits_u64(n: u64) -> usize {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct PrefixOpState {
     stage: U4VarSys,
     cell: UDynVarSys,
@@ -33,16 +33,56 @@ struct PrefixOpState {
     end: BoolVarSys,
 }
 
+// State:
+// stage - stage to execute
+// cell - loaded memory
+// carry - carry from subtraction from memory address (conjunction)
+// no_first - if first phase
+// ext_output - from shifting temp_buffer[sub]
 impl PrefixOpState {
-    fn new(cell_len: usize, stage: u8, input_state: &UDynVarSys) -> Self {
-        let v = input_state.subvalues(4, [cell_len, 1, 1, 1]);
+    fn new(cell_len: usize, input_state: &UDynVarSys) -> Self {
+        let v = input_state.subvalues(0, [cell_len, 1, 1, 1]);
         Self {
-            stage: stage.into(),
-            cell: v[0].clone(),
-            no_first: v[1].bit(0),
-            carry: v[2].bit(0),
-            end: v[3].bit(0),
+            stage: U4VarSys::try_from(v[0].clone()).unwrap(),
+            cell: v[1].clone(),
+            no_first: v[2].bit(0),
+            carry: v[3].bit(0),
+            end: v[4].bit(0),
         }
+    }
+    fn len(cell_len: usize) -> usize {
+        4 + cell_len + 3
+    }
+
+    fn to_var(self) -> UDynVarSys {
+        UDynVarSys::from(self.stage)
+            .concat(self.cell)
+            .concat(UDynVarSys::from_iter([self.no_first, self.carry, self.end]))
+    }
+
+    fn stage(mut self, stage: U4VarSys) -> Self {
+        self.stage = stage;
+        self
+    }
+    fn stage_val(mut self, stage: usize) -> Self {
+        self.stage = stage.into();
+        self
+    }
+    fn cell(mut self, cell: UDynVarSys) -> Self {
+        self.cell = cell;
+        self
+    }
+    fn no_first(mut self, no_first: BoolVarSys) -> Self {
+        self.no_first = no_first;
+        self
+    }
+    fn carry(mut self, carry: BoolVarSys) -> Self {
+        self.carry = carry;
+        self
+    }
+    fn end(mut self, end: BoolVarSys) -> Self {
+        self.end = end;
+        self
     }
 }
 
@@ -57,6 +97,7 @@ fn gen_prefix_op(
         cell_len_bits,
         data_part_len,
     };
+    let cell_len = 1 << cell_len_bits;
     let mut mobj = InfParMachineObjectSys::new(
         config,
         InfParEnvConfig {
@@ -66,15 +107,18 @@ fn gen_prefix_op(
             max_temp_buffer_len: max_proc_num_bits,
         },
     );
-    // State:
-    // stage - stage to execute
-    // cell - loaded memory
-    // carry - carry from subtraction from memory address (conjunction)
-    // no_first - if first phase
-    // ext_output - from shifting temp_buffer[sub]
+    mobj.in_state = Some(UDynVarSys::var(PrefixOpState::len(cell_len)));
+    let mut mach_input = mobj.input();
+    let input_state = PrefixOpState::new(cell_len, &mach_input.state);
     // Main stages:
     // no_first = 0 - in state.
     // 0. Init memory and proc end pos.
+    // let (output_1, _) = init_machine_end_pos_stage(
+    //     input_state.stage_val(0),
+    //     input_state.stage_val(1),
+    //     &mut mach_input,
+    //     temp_buffer_step,
+    // );
     // 1. Move mem data to start.
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     // 3. Initialize temp_buffer[sub] = 1 and state_carry = 1.
