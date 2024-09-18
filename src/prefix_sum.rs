@@ -323,50 +323,63 @@ fn gen_prefix_op(
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
+    let command = args.next().unwrap();
     let op = args.next().unwrap();
     let cell_len_bits: u32 = args.next().unwrap().parse().unwrap();
     let data_part_len: u32 = args.next().unwrap().parse().unwrap();
     let proc_num: u64 = args.next().unwrap().parse().unwrap();
-    let max_proc_num_bits: u32 = if let Some(arg) = args.next() {
-        arg.parse().unwrap()
-    } else {
-        u32::try_from(calc_log_bits_u64(proc_num)).unwrap()
-    };
     assert!(cell_len_bits <= 16);
     assert_ne!(data_part_len, 0);
     assert_ne!(proc_num, 0);
-    assert_ne!(max_proc_num_bits, 0);
-    assert!((1 << cell_len_bits) < max_proc_num_bits);
-    assert!(max_proc_num_bits <= 64);
-    assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
-    print!(
-        "{}",
-        callsys(|| gen_prefix_op(
-            cell_len_bits,
-            data_part_len,
-            proc_num,
-            max_proc_num_bits,
-            match op.as_str() {
-                "add" => |arg1, arg2| arg1 + arg2,
-                "mul" => |arg1, arg2| arg1 * arg2,
-                "and" => |arg1, arg2| arg1 & arg2,
-                "or" => |arg1, arg2| arg1 | arg2,
-                "xor" => |arg1, arg2| arg1 ^ arg2,
-                "min" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
-                    (&arg1).less_than(&arg2),
-                    arg1,
-                    arg2
-                ),
-                "max" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
-                    (&arg1).greater_than(&arg2),
-                    arg1,
-                    arg2
-                ),
-                _ => {
-                    panic!("Unknown op");
-                }
-            }
-        )
-        .unwrap())
-    );
+    match command.as_str() {
+        "machine" => {
+            let max_proc_num_bits: u32 = if let Some(arg) = args.next() {
+                arg.parse().unwrap()
+            } else {
+                u32::try_from(calc_log_bits_u64(proc_num)).unwrap()
+            };
+            assert_ne!(max_proc_num_bits, 0);
+            assert!((1 << cell_len_bits) < max_proc_num_bits);
+            assert!(max_proc_num_bits <= 64);
+            assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
+            print!(
+                "{}",
+                callsys(|| gen_prefix_op(
+                    cell_len_bits,
+                    data_part_len,
+                    proc_num,
+                    max_proc_num_bits,
+                    match op.as_str() {
+                        "add" => |arg1, arg2| arg1 + arg2,
+                        "mul" => |arg1, arg2| arg1 * arg2,
+                        "and" => |arg1, arg2| arg1 & arg2,
+                        "or" => |arg1, arg2| arg1 | arg2,
+                        "xor" => |arg1, arg2| arg1 ^ arg2,
+                        "min" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
+                            (&arg1).less_than(&arg2),
+                            arg1,
+                            arg2
+                        ),
+                        "max" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
+                            (&arg1).greater_than(&arg2),
+                            arg1,
+                            arg2
+                        ),
+                        _ => {
+                            panic!("Unknown op");
+                        }
+                    }
+                )
+                .unwrap())
+            );
+        }
+        "data_and_exp" => {
+            let max_value: u64 = args.next().unwrap().parse().unwrap();
+            let data_path = args.next().unwrap();
+            let expected_path = args.next();
+        }
+        _ => {
+            panic!("Unknown command");
+        }
+    }
 }
