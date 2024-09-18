@@ -20,8 +20,8 @@ name = "simple_inc3"
 path = "src/simple_inc3.rs"
 
 [[bin]]
-name = "prefix_sum"
-path = "src/prefix_sum.rs"
+name = "prefix_op"
+path = "src/prefix_op.rs"
 
 [[bin]]
 name = "utils_test"
