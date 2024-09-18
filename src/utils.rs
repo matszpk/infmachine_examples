@@ -122,14 +122,15 @@ impl CellVec {
     }
 }
 
-pub struct CellDataWriter<W: Write> {
+pub struct CellWriter<W: Write> {
     cell_len_bits: u32,
     writer: W,
+    first: bool,
     cell_pos: u32,
     cell: Vec<u8>,
 }
 
-impl<W: Write> CellDataWriter<W> {
+impl<W: Write> CellWriter<W> {
     pub fn new(cell_len_bits: u32, writer: W) -> Self {
         let cell_byte_num = if cell_len_bits >= 3 {
             1 << (cell_len_bits - 3)
@@ -139,10 +140,12 @@ impl<W: Write> CellDataWriter<W> {
         Self {
             cell_len_bits,
             writer,
+            first: true,
             cell_pos: 0,
             cell: vec![0u8; cell_byte_num],
         }
     }
+
     pub fn write_cell(&mut self, cell: u64) -> std::io::Result<()> {
         if self.cell_len_bits < 3 {
             let cell_mask = (1 << (1 << self.cell_len_bits)) - 1;
@@ -158,12 +161,24 @@ impl<W: Write> CellDataWriter<W> {
             let vbytes = cell.to_le_bytes();
             self.cell.copy_from_slice(&vbytes[0..cell_byte_num]);
         }
-        if self.cell_pos == 0 {
+        self.first = false;
+        self.flush()
+    }
+
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        if !self.first && self.cell_pos == 0 {
             self.writer.write(&self.cell)?;
             // clear cell byte
             self.cell[0] = 0;
         }
+        self.first = true;
         Ok(())
+    }
+}
+
+impl<W: Write> Drop for CellWriter<W> {
+    fn drop(&mut self) {
+        let _ = self.flush();
     }
 }
 
