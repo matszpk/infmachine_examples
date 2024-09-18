@@ -124,7 +124,7 @@ impl CellVec {
 
 pub struct CellWriter<W: Write> {
     cell_len_bits: u32,
-    writer: W,
+    writer: Option<W>,
     first: bool,
     cell_pos: u32,
     cell: Vec<u8>,
@@ -139,7 +139,7 @@ impl<W: Write> CellWriter<W> {
         };
         Self {
             cell_len_bits,
-            writer,
+            writer: Some(writer),
             first: true,
             cell_pos: 0,
             cell: vec![0u8; cell_byte_num],
@@ -159,20 +159,32 @@ impl<W: Write> CellWriter<W> {
         } else {
             let cell_byte_num = 1 << (self.cell_len_bits - 3);
             let vbytes = cell.to_le_bytes();
-            self.cell.copy_from_slice(&vbytes[0..cell_byte_num]);
+            let byte_num = std::cmp::min(8, cell_byte_num);
+            self.cell[0..byte_num].copy_from_slice(&vbytes[0..byte_num]);
         }
         self.first = false;
-        self.flush()
+        if self.cell_pos == 0 {
+            self.flush()
+        } else {
+            Ok(())
+        }
     }
 
     pub fn flush(&mut self) -> std::io::Result<()> {
-        if !self.first && self.cell_pos == 0 {
-            self.writer.write(&self.cell)?;
-            // clear cell byte
-            self.cell[0] = 0;
+        if let Some(w) = self.writer.as_mut() {
+            if !self.first {
+                w.write(&self.cell)?;
+                // clear cell byte
+                self.cell[0] = 0;
+            }
+            self.first = true;
         }
-        self.first = true;
         Ok(())
+    }
+
+    pub fn inner(mut self) -> std::io::Result<W> {
+        self.flush()?;
+        Ok(self.writer.take().unwrap())
     }
 }
 
@@ -3485,6 +3497,71 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
             mem_address_proc_id_setup(7, 0, 275115, 211615)
+        );
+    }
+
+    fn cell_writer_helper(cell_len_bits: u32, iter: impl IntoIterator<Item = u64>) -> Vec<u8> {
+        let mut out = vec![];
+        let mut cw = CellWriter::new(cell_len_bits, out);
+        for v in iter.into_iter() {
+            cw.write_cell(v).unwrap();
+        }
+        cw.inner().unwrap()
+    }
+
+    #[test]
+    fn test_cell_writer() {
+        assert_eq!(vec![0b1101], cell_writer_helper(0, [1, 0, 1, 1]));
+        assert_eq!(
+            vec![0b10001101],
+            cell_writer_helper(0, [1, 0, 1, 1, 0, 0, 0, 1])
+        );
+        assert_eq!(
+            vec![0b10001101, 0b1011],
+            cell_writer_helper(0, [1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1])
+        );
+        assert_eq!(
+            vec![0b00111001, 0b011011],
+            cell_writer_helper(1, [1, 2, 3, 0, 3, 2, 1])
+        );
+        assert_eq!(
+            vec![0x37, 0xb8, 0xed],
+            cell_writer_helper(2, [7, 3, 8, 11, 13, 14])
+        );
+        assert_eq!(
+            vec![0x37, 0xb8, 0xad, 0x02],
+            cell_writer_helper(2, [7, 3, 8, 11, 13, 10, 2])
+        );
+        assert_eq!(
+            vec![55, 67, 86, 11],
+            cell_writer_helper(3, [55, 67, 86, 11])
+        );
+        assert_eq!(
+            vec![55, 67, 86, 11, 119],
+            cell_writer_helper(3, [55, 67, 86, 11, 119])
+        );
+        assert_eq!(
+            vec![0xcd, 0xab, 0xca, 0x04, 0x91, 0x9],
+            cell_writer_helper(4, [0xabcd, 0x4ca, 0x991])
+        );
+        assert_eq!(
+            vec![0xcd, 0xab, 0x11, 0, 0xca, 0x04, 0x77, 0, 0x91, 0x19, 0xd1, 0x12],
+            cell_writer_helper(5, [0x11abcd, 0x7704ca, 0x12d11991])
+        );
+        assert_eq!(
+            vec![
+                0xcd, 0xab, 0x11, 0, 0x6, 0, 0, 0, 0xca, 0x04, 0x77, 0x10, 0x22, 0, 0, 0, 0x91,
+                0x19, 0xd1, 0x12, 0, 0x66, 0, 0
+            ],
+            cell_writer_helper(6, [0x60011abcd, 0x22107704ca, 0x660012d11991])
+        );
+        assert_eq!(
+            vec![
+                0xcd, 0xab, 0x11, 0, 0x6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xca, 0x04, 0x77, 0x10,
+                0x22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x91, 0x19, 0xd1, 0x12, 0, 0x66, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0,
+            ],
+            cell_writer_helper(7, [0x60011abcd, 0x22107704ca, 0x660012d11991])
         );
     }
 }
