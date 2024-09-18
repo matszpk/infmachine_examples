@@ -8,7 +8,7 @@ use rand::random;
 
 use std::env;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 use std::path::Path;
 
 pub mod utils;
@@ -311,10 +311,42 @@ fn gen_data_and_expected(
     cell_len_bits: u32,
     data_part_len: u32,
     proc_num: u64,
+    max_value: u64,
     data_path: impl AsRef<Path>,
     expected_path: Option<impl AsRef<Path>>,
     op: impl Fn(u64, u64) -> u64,
+    init_value: u64,
 ) -> std::io::Result<()> {
+    let mut data_writer = CellWriter::new(cell_len_bits, BufWriter::new(File::create(data_path)?));
+    let mut expected_writer_opt = if let Some(path) = expected_path {
+        Some(CellWriter::new(
+            cell_len_bits,
+            BufWriter::new(File::create(path)?),
+        ))
+    } else {
+        None
+    };
+    let proc_num_bits = u32::try_from(calc_log_bits_u64(proc_num)).unwrap();
+    mem_address_proc_id_setup(
+        &mut data_writer,
+        0,
+        ((proc_num_bits + data_part_len - 1) / data_part_len) as u64,
+        ((proc_num_bits + data_part_len - 1) / data_part_len) as u64,
+    )?;
+    let mut cum_v = init_value;
+    let cell_mask = if cell_len_bits < 6 {
+        (1u64 << (1 << cell_len_bits)) - 1
+    } else {
+        u64::MAX
+    };
+    for _ in 0..proc_num {
+        let v = random::<u64>() % max_value;
+        data_writer.write_cell(v)?;
+        cum_v = op(cum_v, v) & cell_mask;
+        if let Some(exp_writer) = expected_writer_opt.as_mut() {
+            exp_writer.write_cell(cum_v)?;
+        }
+    }
     Ok(())
 }
 
@@ -372,6 +404,7 @@ fn main() {
             );
         }
         "data_and_exp" => {
+            assert!(cell_len_bits <= 6);
             let max_value: u64 = args.next().unwrap().parse().unwrap();
             let data_path = args.next().unwrap();
             let expected_path = args.next();
@@ -379,6 +412,7 @@ fn main() {
                 cell_len_bits,
                 data_part_len,
                 proc_num,
+                max_value,
                 data_path,
                 expected_path,
                 match op.as_str() {
@@ -389,6 +423,18 @@ fn main() {
                     "xor" => |arg1, arg2| arg1 ^ arg2,
                     "min" => |arg1, arg2| std::cmp::min(arg1, arg2),
                     "max" => |arg1, arg2| std::cmp::max(arg1, arg2),
+                    _ => {
+                        panic!("Unknown op");
+                    }
+                },
+                match op.as_str() {
+                    "add" => 0,
+                    "mul" => 1,
+                    "and" => u64::MAX,
+                    "or" => 0,
+                    "xor" => 0,
+                    "min" => u64::MAX,
+                    "max" => 0,
                     _ => {
                         panic!("Unknown op");
                     }
