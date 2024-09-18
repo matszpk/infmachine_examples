@@ -203,12 +203,13 @@ fn gen_prefix_op(
     );
     // 5. Load memory data to state (arg1).
     let mut output_5 = InfParOutputSys::new(config);
+    let new_carry = &input_state.carry & &input_state.ext_out;
     output_5.state = input_state
         .clone()
         .stage_val(6)
-        .carry(&input_state.carry & &input_state.ext_out)
+        .carry(new_carry.clone())
         .to_var();
-    output_5.memr = true.into();
+    output_5.memr = new_carry;
     // 6. If state_carry: cell = cell + arg1.
     let mut output_6 = InfParOutputSys::new(config);
     output_6.state = input_state
@@ -242,7 +243,7 @@ fn gen_prefix_op(
     // 8. Store cell to memory.
     let mut output_8 = InfParOutputSys::new(config);
     output_8.state = input_state.clone().stage_val(9).to_var();
-    output_8.memw = true.into();
+    output_8.memw = input_state.carry.clone();
     output_8.memval = input_state.cell.clone();
     // 9. Swap temp_buffer[orig] and mem_address.
     let (output_9, _, _, _) = par_process_infinite_data_stage(
