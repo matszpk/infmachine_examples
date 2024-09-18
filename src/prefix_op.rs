@@ -9,24 +9,6 @@ use std::env;
 pub mod utils;
 use utils::*;
 
-const fn calc_log_bits(n: usize) -> usize {
-    let nbits = usize::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
-
-const fn calc_log_bits_u64(n: u64) -> usize {
-    let nbits = u64::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
-
 #[derive(Clone, Debug)]
 struct PrefixOpState {
     stage: U4VarSys,
@@ -85,10 +67,6 @@ impl PrefixOpState {
     }
     fn carry(mut self, carry: BoolVarSys) -> Self {
         self.carry = carry;
-        self
-    }
-    fn ext_out(mut self, ext_out: BoolVarSys) -> Self {
-        self.ext_out = ext_out;
         self
     }
     fn ext_out_pos(&self) -> usize {
@@ -306,7 +284,11 @@ fn gen_prefix_op(
     // 11. Set no_first = 1.
     //     Check if temp_buffer[sub] = end: if yes then: end otherwise go to 4.
     let mut output_11 = InfParOutputSys::new(config);
-    output_11.state = input_state.clone().stage_val(4).to_var();
+    output_11.state = input_state
+        .clone()
+        .stage_val(4)
+        .no_first(true.into())
+        .to_var();
     output_11.stop = input_state.ext_out.clone();
     finish_machine_with_table(
         mobj,

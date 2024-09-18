@@ -54,7 +54,7 @@ use std::ops::{BitAnd, BitOr, BitXor};
 // Temp buffer chunk part: [WORD0, WORD1,...]
 // WORD0: 0 bit - memory address end pos, 1 bit - proc id end pos, 2 bit - other end pos, ....
 
-const fn calc_log_bits(n: usize) -> usize {
+pub const fn calc_log_bits(n: usize) -> usize {
     let nbits = usize::BITS - n.leading_zeros();
     if (1 << (nbits - 1)) == n {
         (nbits - 1) as usize
@@ -63,7 +63,7 @@ const fn calc_log_bits(n: usize) -> usize {
     }
 }
 
-const fn calc_log_bits_u64(n: u64) -> usize {
+pub const fn calc_log_bits_u64(n: u64) -> usize {
     let nbits = u64::BITS - n.leading_zeros();
     if (1 << (nbits - 1)) == n {
         (nbits - 1) as usize

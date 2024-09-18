@@ -1,6 +1,5 @@
 use gategen::boolvar::*;
 use gategen::dynintvar::*;
-use gategen::intvar::*;
 use infmachine_config::*;
 use infmachine_gen::*;
 
