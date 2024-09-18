@@ -390,33 +390,33 @@ fn main() {
             assert!(u128::from(proc_num) <= (1u128 << max_proc_num_bits));
             print!(
                 "{}",
-                callsys(|| gen_prefix_op(
-                    cell_len_bits,
-                    data_part_len,
-                    proc_num,
-                    max_proc_num_bits,
-                    match op.as_str() {
-                        "add" => |arg1, arg2| arg1 + arg2,
-                        "mul1" => |arg1: UDynVarSys, arg2: UDynVarSys| (arg1 + 1u8) * (arg2 + 1u8),
-                        "and" => |arg1, arg2| arg1 & arg2,
-                        "or" => |arg1, arg2| arg1 | arg2,
-                        "xor" => |arg1, arg2| arg1 ^ arg2,
-                        "min" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
-                            (&arg1).less_than(&arg2),
-                            arg1,
-                            arg2
-                        ),
-                        "max" => |arg1: UDynVarSys, arg2: UDynVarSys| dynint_ite(
-                            (&arg1).greater_than(&arg2),
-                            arg1,
-                            arg2
-                        ),
-                        _ => {
-                            panic!("Unknown op");
-                        }
-                    }
-                )
-                .unwrap())
+                callsys(|| {
+                    gen_prefix_op(
+                        cell_len_bits,
+                        data_part_len,
+                        proc_num,
+                        max_proc_num_bits,
+                        match op.as_str() {
+                            "add" => |arg1, arg2| arg1 + arg2,
+                            "mul1" => |arg1: UDynVarSys, arg2: UDynVarSys| {
+                                ((arg1 + 1u8) * (arg2 + 1u8)) - 1u8
+                            },
+                            "and" => |arg1, arg2| arg1 & arg2,
+                            "or" => |arg1, arg2| arg1 | arg2,
+                            "xor" => |arg1, arg2| arg1 ^ arg2,
+                            "min" => |arg1: UDynVarSys, arg2: UDynVarSys| {
+                                dynint_ite((&arg1).less_than(&arg2), arg1, arg2)
+                            },
+                            "max" => |arg1: UDynVarSys, arg2: UDynVarSys| {
+                                dynint_ite((&arg1).greater_than(&arg2), arg1, arg2)
+                            },
+                            _ => {
+                                panic!("Unknown op");
+                            }
+                        },
+                    )
+                    .unwrap()
+                })
             );
         }
         "data_and_exp" => {
@@ -436,6 +436,8 @@ fn main() {
                     "mul1" => |arg1: u64, arg2: u64| {
                         (arg1.overflowing_add(1).0)
                             .overflowing_mul(arg2.overflowing_add(1).0)
+                            .0
+                            .overflowing_sub(1)
                             .0
                     },
                     "and" => |arg1, arg2| arg1 & arg2,
