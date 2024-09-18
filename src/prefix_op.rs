@@ -397,7 +397,7 @@ fn main() {
                     max_proc_num_bits,
                     match op.as_str() {
                         "add" => |arg1, arg2| arg1 + arg2,
-                        "mul" => |arg1, arg2| arg1 * arg2,
+                        "mul1" => |arg1: UDynVarSys, arg2: UDynVarSys| (arg1 + 1u8) * (arg2 + 1u8),
                         "and" => |arg1, arg2| arg1 & arg2,
                         "or" => |arg1, arg2| arg1 | arg2,
                         "xor" => |arg1, arg2| arg1 ^ arg2,
@@ -432,8 +432,12 @@ fn main() {
                 data_path,
                 expected_path,
                 match op.as_str() {
-                    "add" => |arg1, arg2| arg1 + arg2,
-                    "mul" => |arg1, arg2| arg1 * arg2,
+                    "add" => |arg1: u64, arg2: u64| arg1.overflowing_add(arg2).0,
+                    "mul1" => |arg1: u64, arg2: u64| {
+                        (arg1.overflowing_add(1).0)
+                            .overflowing_mul(arg2.overflowing_add(1).0)
+                            .0
+                    },
                     "and" => |arg1, arg2| arg1 & arg2,
                     "or" => |arg1, arg2| arg1 | arg2,
                     "xor" => |arg1, arg2| arg1 ^ arg2,
@@ -445,7 +449,7 @@ fn main() {
                 },
                 match op.as_str() {
                     "add" => 0,
-                    "mul" => 1,
+                    "mul1" => 0,
                     "and" => u64::MAX,
                     "or" => 0,
                     "xor" => 0,
