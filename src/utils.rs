@@ -6,6 +6,7 @@ use infmachine_gen::*;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::io::Write;
 use std::ops::{BitAnd, BitOr, BitXor};
 
 // Utilities for machine.
@@ -96,11 +97,11 @@ impl CellVec {
         if self.cell_len_bits < 3 {
             let cell_mask = (1 << (1 << self.cell_len_bits)) - 1;
             let cell_addr_mask = (1 << (3 - self.cell_len_bits)) - 1;
-            let bit_pos = self.len & cell_addr_mask;
-            if bit_pos == 0 {
+            let cell_pos = self.len & cell_addr_mask;
+            if cell_pos == 0 {
                 self.data.push(0u8);
             }
-            let shift = bit_pos << self.cell_len_bits;
+            let shift = cell_pos << self.cell_len_bits;
             let vlen = usize::try_from(self.len >> (3 - self.cell_len_bits)).unwrap();
             self.data[vlen] |= (u8::try_from(value).unwrap() & cell_mask) << shift;
         } else {
@@ -118,6 +119,51 @@ impl CellVec {
     }
     pub fn to_vec(self) -> Vec<u8> {
         self.data
+    }
+}
+
+pub struct CellDataWriter<W: Write> {
+    cell_len_bits: u32,
+    writer: W,
+    cell_pos: u32,
+    cell: Vec<u8>,
+}
+
+impl<W: Write> CellDataWriter<W> {
+    pub fn new(cell_len_bits: u32, writer: W) -> Self {
+        let cell_byte_num = if cell_len_bits >= 3 {
+            1 << (cell_len_bits - 3)
+        } else {
+            1
+        };
+        Self {
+            cell_len_bits,
+            writer,
+            cell_pos: 0,
+            cell: vec![0u8; cell_byte_num],
+        }
+    }
+    pub fn write_cell(&mut self, cell: u64) -> std::io::Result<()> {
+        if self.cell_len_bits < 3 {
+            let cell_mask = (1 << (1 << self.cell_len_bits)) - 1;
+            let cell_num_in_byte = 1 << (3 - self.cell_len_bits);
+            let shift = self.cell_pos << self.cell_len_bits;
+            self.cell[0] |= (u8::try_from(cell).unwrap() & cell_mask) << shift;
+            self.cell_pos += 1;
+            if self.cell_pos == cell_num_in_byte {
+                self.cell_pos = 0;
+            }
+        } else {
+            let cell_byte_num = 1 << (self.cell_len_bits - 3);
+            let vbytes = cell.to_le_bytes();
+            self.cell.copy_from_slice(&vbytes[0..cell_byte_num]);
+        }
+        if self.cell_pos == 0 {
+            self.writer.write(&self.cell)?;
+            // clear cell byte
+            self.cell[0] = 0;
+        }
+        Ok(())
     }
 }
 
