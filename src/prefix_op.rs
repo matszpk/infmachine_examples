@@ -139,7 +139,7 @@ fn gen_prefix_op(
             proc_num,
             flat_memory: true,
             max_mem_size: Some((((proc_num + 32) << cell_len_bits) + 7) >> 3),
-            max_temp_buffer_len: tb_chunk_len * data_part_num,
+            max_temp_buffer_len: (tb_chunk_len + 2) * data_part_num * data_part_len,
         },
     );
     mobj.in_state = Some(UDynVarSys::var(PrefixOpState::len(cell_len)));
