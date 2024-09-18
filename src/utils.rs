@@ -186,6 +186,10 @@ impl<W: Write> CellWriter<W> {
         self.flush()?;
         Ok(self.writer.take().unwrap())
     }
+
+    pub fn cell_len_bits(&self) -> u32 {
+        self.cell_len_bits
+    }
 }
 
 impl<W: Write> Drop for CellWriter<W> {
@@ -194,37 +198,39 @@ impl<W: Write> Drop for CellWriter<W> {
     }
 }
 
-pub fn mem_address_proc_id_setup(
-    cell_len_bits: u32,
+pub fn mem_address_proc_id_setup<W: Write>(
+    cw: &mut CellWriter<W>,
     align_bits: u32,
     mem_address_end_pos: u64,
     proc_id_end_pos: u64,
-) -> Vec<u8> {
-    assert!(align_bits + cell_len_bits >= 3);
+) -> std::io::Result<()> {
+    let cell_len_bits = cw.cell_len_bits();
     assert_ne!(mem_address_end_pos, 0);
     assert_ne!(proc_id_end_pos, 0);
-    let mut out = CellVec::new(cell_len_bits);
     // cut cell_len_bits to max bits of these function's arguments (in this case 6 -> 64).
     let cell_len_bits_cut = std::cmp::min(6, cell_len_bits);
     let max_value = u64::try_from((1u128 << (1 << cell_len_bits_cut)) - 1).unwrap();
+    let mut cell_count = 0u64;
     for value in [mem_address_end_pos, proc_id_end_pos] {
         let mut count = value;
         while count != 0 {
             let dec = std::cmp::min(max_value, count);
             // store
-            out.push(dec);
+            cw.write_cell(dec)?;
             count -= dec;
+            cell_count += 1;
         }
-        out.push(0);
+        cw.write_cell(0)?;
+        cell_count += 1;
     }
-    let mut out = out.to_vec();
-    let align_bits = align_bits + cell_len_bits - 3;
-    let align = 1usize << align_bits;
-    let align_mask = align - 1;
-    if (out.len() & align_mask) != 0 {
-        out.resize(((out.len() >> align_bits) + 1) << align_bits, 0u8);
+    let align_mask = (1u64 << align_bits) - 1;
+    if (cell_count & align_mask) != 0 {
+        let extra_count = (1u64 << align_bits) - (cell_count & align_mask);
+        for _ in 0..extra_count {
+            cw.write_cell(0)?;
+        }
     }
-    out
+    Ok(())
 }
 
 //
@@ -3389,97 +3395,113 @@ pub fn mem_data_to_start(
 mod tests {
     use super::*;
 
+    fn mem_address_proc_id_setup_helper(
+        cell_len_bits: u32,
+        align_bits: u32,
+        mem_address_end_pos: u64,
+        proc_id_end_pos: u64,
+    ) -> Vec<u8> {
+        let mut out = vec![];
+        let mut cw = CellWriter::new(cell_len_bits, out);
+        mem_address_proc_id_setup(&mut cw, align_bits, mem_address_end_pos, proc_id_end_pos)
+            .unwrap();
+        cw.inner().unwrap()
+    }
+
     #[test]
-    fn test_mem_address_proc_id_setup() {
+    fn test_mem_address_proc_id_setup_helper() {
         // 1-bit cell
         assert_eq!(
             vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b00111111],
-            mem_address_proc_id_setup(0, 3, 18, 27)
+            mem_address_proc_id_setup_helper(0, 3, 18, 27)
         );
         assert_eq!(
             vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b01111111],
-            mem_address_proc_id_setup(0, 3, 18, 28)
+            mem_address_proc_id_setup_helper(0, 3, 18, 28)
         );
         assert_eq!(
             vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b01111111, 0, 0],
-            mem_address_proc_id_setup(0, 5, 18, 28)
+            mem_address_proc_id_setup_helper(0, 5, 18, 28)
         );
         assert_eq!(
             vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b11111111, 0],
-            mem_address_proc_id_setup(0, 3, 18, 29)
+            mem_address_proc_id_setup_helper(0, 3, 18, 29)
         );
         // 2-bit cell
         assert_eq!(
             vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001],
-            mem_address_proc_id_setup(1, 2, 17, 28)
+            mem_address_proc_id_setup_helper(1, 2, 17, 28)
         );
         assert_eq!(
             vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001, 0],
-            mem_address_proc_id_setup(1, 3, 17, 28)
+            mem_address_proc_id_setup_helper(1, 3, 17, 28)
         );
         assert_eq!(
             vec![0b11111111, 0b11001011, 0b11111111, 0b11111111, 0b0001, 0, 0, 0],
-            mem_address_proc_id_setup(1, 4, 17, 28)
+            mem_address_proc_id_setup_helper(1, 4, 17, 28)
         );
         // 4-bit cell
         assert_eq!(
             vec![0x2f, 0xf0, 0xd],
-            mem_address_proc_id_setup(2, 1, 17, 28)
+            mem_address_proc_id_setup_helper(2, 1, 17, 28)
         );
         assert_eq!(
             vec![0x2f, 0xf0, 0xd, 0],
-            mem_address_proc_id_setup(2, 2, 17, 28)
+            mem_address_proc_id_setup_helper(2, 2, 17, 28)
         );
         assert_eq!(
             vec![0xff, 0x4f, 0xf0, 0xff, 0xff, 0x5],
-            mem_address_proc_id_setup(2, 1, 49, 80)
+            mem_address_proc_id_setup_helper(2, 1, 49, 80)
         );
         assert_eq!(
             vec![0xff, 0x4f, 0xf0, 0xff, 0xff, 0x5, 0, 0],
-            mem_address_proc_id_setup(2, 3, 49, 80)
+            mem_address_proc_id_setup_helper(2, 3, 49, 80)
         );
         // 4-bit cell
-        assert_eq!(vec![17, 0, 28, 0], mem_address_proc_id_setup(3, 0, 17, 28));
+        assert_eq!(
+            vec![17, 0, 28, 0],
+            mem_address_proc_id_setup_helper(3, 0, 17, 28)
+        );
         assert_eq!(
             vec![17, 0, 28, 0, 0, 0, 0, 0],
-            mem_address_proc_id_setup(3, 3, 17, 28)
+            mem_address_proc_id_setup_helper(3, 3, 17, 28)
         );
         // 8-bit cell
         assert_eq!(
             vec![255, 255, 241, 0, 255, 255, 255, 255, 141, 0],
-            mem_address_proc_id_setup(3, 0, 751, 1161)
+            mem_address_proc_id_setup_helper(3, 0, 751, 1161)
         );
         assert_eq!(
             vec![255, 255, 241, 0, 255, 255, 255, 255, 141, 0, 0, 0],
-            mem_address_proc_id_setup(3, 2, 751, 1161)
+            mem_address_proc_id_setup_helper(3, 2, 751, 1161)
         );
         // 16-bit cell
         assert_eq!(
             vec![0xef, 2, 0, 0, 0x89, 4, 0, 0],
-            mem_address_proc_id_setup(4, 0, 751, 1161)
+            mem_address_proc_id_setup_helper(4, 0, 751, 1161)
         );
         assert_eq!(
             vec![0xef, 2, 0, 0, 0x89, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            mem_address_proc_id_setup(4, 3, 751, 1161)
+            mem_address_proc_id_setup_helper(4, 3, 751, 1161)
         );
         assert_eq!(
             vec![
                 255, 255, 255, 255, 255, 255, 255, 255, 0xaf, 0x32, 0, 0, 255, 255, 255, 255, 255,
                 255, 0xa2, 0x3a, 0, 0
             ],
-            mem_address_proc_id_setup(4, 0, 275115, 211615)
+            mem_address_proc_id_setup_helper(4, 0, 275115, 211615)
         );
         assert_eq!(
             vec![
                 255, 255, 255, 255, 255, 255, 255, 255, 0xaf, 0x32, 0, 0, 255, 255, 255, 255, 255,
                 255, 0xa2, 0x3a, 0, 0, 0, 0
             ],
-            mem_address_proc_id_setup(4, 2, 275115, 211615)
+            mem_address_proc_id_setup_helper(4, 2, 275115, 211615)
         );
         // 32-bit cell
         assert_eq!(
             vec![0xab, 0x32, 0x4, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0, 0, 0],
-            mem_address_proc_id_setup(5, 0, 275115, 211615)
+            mem_address_proc_id_setup_helper(5, 0, 275115, 211615)
         );
         // 64-bit cell
         assert_eq!(
@@ -3487,7 +3509,7 @@ mod tests {
                 0xab, 0x32, 0x4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ],
-            mem_address_proc_id_setup(6, 0, 275115, 211615)
+            mem_address_proc_id_setup_helper(6, 0, 275115, 211615)
         );
         // 128-bit cell
         assert_eq!(
@@ -3496,7 +3518,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0x9f, 0x3a, 0x3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
-            mem_address_proc_id_setup(7, 0, 275115, 211615)
+            mem_address_proc_id_setup_helper(7, 0, 275115, 211615)
         );
     }
 

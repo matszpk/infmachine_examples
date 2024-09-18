@@ -29,3 +29,4 @@ path = "src/utils_test.rs"
 
 [dependencies]
 infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
+rand = "0.8"

@@ -4,7 +4,12 @@ use gategen::intvar::*;
 use infmachine_config::*;
 use infmachine_gen::*;
 
+use rand::random;
+
 use std::env;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 
 pub mod utils;
 use utils::*;
@@ -302,6 +307,17 @@ fn gen_prefix_op(
     .to_toml()
 }
 
+fn gen_data_and_expected(
+    cell_len_bits: u32,
+    data_part_len: u32,
+    proc_num: u64,
+    data_path: impl AsRef<Path>,
+    expected_path: Option<impl AsRef<Path>>,
+    op: impl Fn(u64, u64) -> u64,
+) -> std::io::Result<()> {
+    Ok(())
+}
+
 fn main() {
     let mut args = env::args();
     args.next().unwrap();
@@ -359,6 +375,26 @@ fn main() {
             let max_value: u64 = args.next().unwrap().parse().unwrap();
             let data_path = args.next().unwrap();
             let expected_path = args.next();
+            gen_data_and_expected(
+                cell_len_bits,
+                data_part_len,
+                proc_num,
+                data_path,
+                expected_path,
+                match op.as_str() {
+                    "add" => |arg1, arg2| arg1 + arg2,
+                    "mul" => |arg1, arg2| arg1 * arg2,
+                    "and" => |arg1, arg2| arg1 & arg2,
+                    "or" => |arg1, arg2| arg1 | arg2,
+                    "xor" => |arg1, arg2| arg1 ^ arg2,
+                    "min" => |arg1, arg2| std::cmp::min(arg1, arg2),
+                    "max" => |arg1, arg2| std::cmp::max(arg1, arg2),
+                    _ => {
+                        panic!("Unknown op");
+                    }
+                },
+            )
+            .unwrap();
         }
         _ => {
             panic!("Unknown command");
