@@ -160,7 +160,7 @@ fn gen_prefix_op(
         input_state.clone().stage_val(2).to_var(),
         &mut mach_input,
         temp_buffer_step,
-        1,
+        0,
     );
     // 2. Initialize memory address = proc_id, temp_buffer[orig] = proc_id.
     //    Initialize temp_buffer[sub] = 1. State_carry = 1.
