@@ -3409,7 +3409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mem_address_proc_id_setup_helper() {
+    fn test_mem_address_proc_id_setup() {
         // 1-bit cell
         assert_eq!(
             vec![0b11111111, 0b11111111, 0b11111011, 0b11111111, 0b11111111, 0b00111111],
