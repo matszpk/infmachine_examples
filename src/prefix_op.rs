@@ -341,11 +341,12 @@ fn gen_data_and_expected(
     } else {
         None
     };
+    let mem_num_bits = u32::try_from(calc_log_bits_u64(proc_num + 32)).unwrap();
     let proc_num_bits = u32::try_from(calc_log_bits_u64(proc_num)).unwrap();
     mem_address_proc_id_setup(
         &mut data_writer,
         0,
-        ((proc_num_bits + data_part_len - 1) / data_part_len) as u64,
+        ((mem_num_bits + data_part_len - 1) / data_part_len) as u64,
         ((proc_num_bits + data_part_len - 1) / data_part_len) as u64,
     )?;
     let mut cum_v = init_value;
