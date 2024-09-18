@@ -74,6 +74,10 @@ impl PrefixOpState {
         self.carry = carry;
         self
     }
+    fn ext_out(mut self, ext_out: BoolVarSys) -> Self {
+        self.ext_out = ext_out;
+        self
+    }
     fn ext_out_pos(&self) -> usize {
         4 + self.cell.bitnum() + 2
     }
@@ -201,13 +205,14 @@ fn gen_prefix_op(
         UDynVarSys::filled(1, ext_out[0].bit(0)),
         ext_out_set,
     );
-    // 5. Load memory data to state (arg1).
+    // 5. Load memory data to state (arg1). Clear ext_out.
     let mut output_5 = InfParOutputSys::new(config);
     let new_carry = &input_state.carry & &input_state.ext_out;
     output_5.state = input_state
         .clone()
         .stage_val(6)
         .carry(new_carry.clone())
+        .ext_out(false.into())
         .to_var();
     output_5.memr = new_carry;
     // 6. If state_carry: cell = cell + arg1.
