@@ -128,18 +128,20 @@ fn gen_prefix_op(
         data_part_len,
     };
     let cell_len = 1 << cell_len_bits;
+    let data_part_num = (max_proc_num_bits + data_part_len - 1) / data_part_len;
+    let (field_start, temp_buffer_step) = temp_buffer_first_field(data_part_len, 0, 2);
+    let orig_field = field_start;
+    let sub_field = orig_field + 1;
+    let tb_chunk_len = sub_field + 1;
     let mut mobj = InfParMachineObjectSys::new(
         config,
         InfParEnvConfig {
             proc_num,
             flat_memory: true,
             max_mem_size: Some(((proc_num << cell_len_bits) + 7) >> 3),
-            max_temp_buffer_len: max_proc_num_bits,
+            max_temp_buffer_len: tb_chunk_len * data_part_num,
         },
     );
-    let (field_start, temp_buffer_step) = temp_buffer_first_field(data_part_len, 0, 2);
-    let orig_field = field_start;
-    let sub_field = orig_field + 1;
     mobj.in_state = Some(UDynVarSys::var(PrefixOpState::len(cell_len)));
     let mut mach_input = mobj.input();
     let input_state = PrefixOpState::new(cell_len, &mach_input.state);
