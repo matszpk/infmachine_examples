@@ -69,7 +69,7 @@ pub fn par_move_to_end_pos_stage(
         input,
         DKIND_TEMP_BUFFER,
         DPMOVE_FORWARD,
-        dp_len as u64,
+        temp_buffer_step as u64,
     );
     outputs.push(output);
     // if set move mem_address
