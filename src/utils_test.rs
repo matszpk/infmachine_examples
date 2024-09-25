@@ -1082,6 +1082,63 @@ fn gen_process_to_temp_buffer_test(
     mobj.to_machine().to_toml()
 }
 
+fn gen_move_to_end_pos_test(
+    cell_len_bits: u32,
+    data_part_len: u32,
+    temp_buffer_len: u32,
+    proc_num: u64,
+    mem_size: u64,
+    temp_buffer_step: u32,
+    end_pos: u32,
+    mem_address: bool,
+    proc_id: bool,
+) -> Result<String, toml::ser::Error> {
+    let config = InfParInterfaceConfig {
+        cell_len_bits,
+        data_part_len,
+    };
+    let mut mobj = InfParMachineObjectSys::new(
+        config,
+        InfParEnvConfig {
+            proc_num,
+            flat_memory: true,
+            max_mem_size: Some(mem_size),
+            max_temp_buffer_len: temp_buffer_len,
+        },
+    );
+    mobj.in_state = Some(UDynVarSys::var(2));
+    let mut mach_input = mobj.input();
+    // first stage
+    let (output_1, _) = init_machine_end_pos_stage(
+        UDynVarSys::from_n(0u8, 2),
+        UDynVarSys::from_n(1u8, 2),
+        &mut mach_input,
+        temp_buffer_step,
+    );
+    let (output_2, _) = par_move_to_end_pos_stage(
+        UDynVarSys::from_n(1u8, 2),
+        UDynVarSys::from_n(2u8, 2),
+        &mut mach_input,
+        temp_buffer_step,
+        end_pos,
+        mem_address,
+        proc_id,
+    );
+    // stop stage
+    let mut output_3 = InfParOutputSys::new(config);
+    output_3.state = mach_input.state.clone();
+    output_3.stop = true.into();
+    let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
+    InfParOutputSys::fix_state_len(&mut output_stages);
+    let final_state = dynint_table(
+        mach_input.state.clone().subvalue(0, 2),
+        output_stages.into_iter().map(|v| v.to_dynintvar()),
+    );
+    mobj.in_state = Some(mach_input.state);
+    mobj.from_dynintvar(final_state);
+    mobj.to_machine().to_toml()
+}
+
 //
 
 fn parse_infdataparam_elem(s: &str) -> Result<(InfDataParam, u32), String> {
@@ -1856,6 +1913,27 @@ fn main() {
                     temp_buffer_step,
                     tbs_pos,
                     One0Func::new(data_part_len as usize)
+                )
+                .unwrap())
+            );
+        }
+        "move_to_end_pos" => {
+            let temp_buffer_step: u32 = args.next().unwrap().parse().unwrap();
+            let mem_address: u32 = args.next().unwrap().parse().unwrap();
+            let proc_id: u32 = args.next().unwrap().parse().unwrap();
+            assert_ne!(temp_buffer_step, 0);
+            print!(
+                "{}",
+                callsys(|| gen_move_to_end_pos_test(
+                    cell_len_bits,
+                    data_part_len,
+                    temp_buffer_len,
+                    proc_num,
+                    mem_size,
+                    temp_buffer_step,
+                    END_POS_PROC_ID,
+                    mem_address != 0,
+                    proc_id != 0,
                 )
                 .unwrap())
             );
