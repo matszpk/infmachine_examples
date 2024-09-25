@@ -92,6 +92,7 @@ pub fn par_move_to_endpos(
         outputs.push(output);
     }
     if end_pos >= dp_len {
+        assert_eq!(end_stage, outputs.len());
         // end: move to start of chunk in temp buffer
         let (output, end) = move_data_pos_stage(
             create_out_state(UDynVarSys::from_n(outputs.len(), stage_type_len)),
