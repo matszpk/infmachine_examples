@@ -107,7 +107,7 @@ pub fn par_move_to_end_pos_stage(
     }
     assert_eq!(total_stages, outputs.len());
     // prepare end bit
-    let end = (&stage).equal(total_stages - 1) & end_of_stage;
+    let end = (&stage).equal(end_stage) & end_of_stage;
     // finish generation
     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
 }
