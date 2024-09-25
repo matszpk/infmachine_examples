@@ -2,34 +2,114 @@ use super::*;
 
 // move to endpos
 
-// fn par_move_to_endpos(
-//     output_state: UDynVarSys,
-//     next_state: UDynVarSys,
-//     input: &mut InfParInputSys,
-//     temp_buffer_step: u32,
-//     end_pos: u32,
-//     mem_address: bool,
-//     proc_id: bool,
-// ) -> (InfParOutputSys, BoolVarSys) {
-//     let config = input.config();
-//     let dp_len = config.data_part_len;
-//     let total_stages =
-//         usize::from(end_pos >= dp_len) + 2 + usize::from(mem_address) + usize::from(proc_id);
-//     let state_start = output_state.bitnum();
-//     let stage_type_len = calc_log_bits(total_stages);
-//     extend_output_state(
-//         state_start,
-//         stage_type_len,
-//         input,
-//     );
-//     let stage = input.state.clone().subvalue(state_start, stage_type_len);
-//     // move to end_pos
-//     let outputs = vec![];
-//     // prepare end bit
-//     let end = (&stage).equal(total_stages - 1) & end_of_stage_final;
-//     // finish generation
-//     finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
-// }
+pub fn par_move_to_endpos(
+    output_state: UDynVarSys,
+    next_state: UDynVarSys,
+    input: &mut InfParInputSys,
+    temp_buffer_step: u32,
+    end_pos: u32,
+    mem_address: bool,
+    proc_id: bool,
+) -> (InfParOutputSys, BoolVarSys) {
+    assert_ne!(temp_buffer_step, 0);
+    let config = input.config();
+    let dp_len = config.data_part_len;
+    assert!(end_pos < temp_buffer_step * dp_len);
+    let total_stages =
+        2 * usize::from(end_pos >= dp_len) + 3 + usize::from(mem_address) + usize::from(proc_id);
+    let state_start = output_state.bitnum();
+    let stage_type_len = calc_log_bits(total_stages);
+    extend_output_state(state_start, stage_type_len, input);
+    let stage = input.state.clone().subvalue(state_start, stage_type_len);
+    let create_out_state = |s| output_state.clone().concat(s);
+    let output_base = InfParOutputSys::new(config);
+    // move to end_pos
+    let mut outputs = vec![];
+    if end_pos >= dp_len {
+        // move to end pos
+        let (output, _) = move_data_pos_stage(
+            create_out_state(UDynVarSys::from_n(outputs.len(), stage_type_len)),
+            create_out_state(UDynVarSys::from_n(outputs.len() + 1, stage_type_len)),
+            input,
+            DKIND_TEMP_BUFFER,
+            DPMOVE_FORWARD,
+            (end_pos / dp_len) as u64,
+        );
+        outputs.push(output);
+    }
+    let loop_start = outputs.len();
+    // read temp buffer end pos
+    let mut output = output_base.clone();
+    output.state = create_out_state(UDynVarSys::from_n(outputs.len() + 1, stage_type_len));
+    output.dkind = DKIND_TEMP_BUFFER.into();
+    output.dpr = true.into();
+    outputs.push(output);
+    // check if not zero
+    let end_stage = if end_pos >= dp_len {
+        outputs.len() + 2 + usize::from(mem_address) + usize::from(proc_id)
+    } else {
+        0
+    };
+    let mut end_of_stage = input.dpval.bit((end_pos % dp_len) as usize);
+    let mut output = output_base.clone();
+    output.state = create_out_state(dynint_ite(
+        end_of_stage.clone(),
+        UDynVarSys::from_n(end_stage, stage_type_len),
+        UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
+    ));
+    outputs.push(output);
+    // move temp buffer
+    let (output, _) = move_data_pos_stage(
+        create_out_state(UDynVarSys::from_n(outputs.len(), stage_type_len)),
+        create_out_state(if mem_address || proc_id {
+            UDynVarSys::from_n(outputs.len() + 1, stage_type_len)
+        } else {
+            UDynVarSys::from_n(loop_start, stage_type_len)
+        }),
+        input,
+        DKIND_TEMP_BUFFER,
+        DPMOVE_FORWARD,
+        dp_len as u64,
+    );
+    outputs.push(output);
+    // if set move mem_address
+    if mem_address {
+        let mut output = output_base.clone();
+        output.state = create_out_state(if proc_id {
+            UDynVarSys::from_n(outputs.len() + 1, stage_type_len)
+        } else {
+            UDynVarSys::from_n(loop_start, stage_type_len)
+        });
+        output.dkind = DKIND_MEM_ADDRESS.into();
+        output.dpmove = DPMOVE_FORWARD.into();
+        outputs.push(output);
+    }
+    if proc_id {
+        let mut output = output_base.clone();
+        output.state = create_out_state(UDynVarSys::from_n(loop_start, stage_type_len));
+        output.dkind = DKIND_PROC_ID.into();
+        output.dpmove = DPMOVE_FORWARD.into();
+        outputs.push(output);
+    }
+    if end_pos >= dp_len {
+        // end: move to start of chunk in temp buffer
+        let (output, end) = move_data_pos_stage(
+            create_out_state(UDynVarSys::from_n(outputs.len(), stage_type_len)),
+            create_out_state(UDynVarSys::from_n(0u8, stage_type_len)),
+            input,
+            DKIND_TEMP_BUFFER,
+            DPMOVE_BACKWARD,
+            (end_pos / dp_len) as u64,
+        );
+        end_of_stage = end;
+        outputs.push(output);
+    }
+    assert_eq!(total_stages, outputs.len());
+    // prepare end bit
+    let end = (&stage).equal(total_stages - 1) & end_of_stage;
+    // finish generation
+    finish_stage_with_table(output_state, next_state, input, outputs, stage, end)
+}
 
 // macro_rules! test_println {
 //     () => { eprintln!(); };
@@ -54,6 +134,7 @@ pub fn par_process_infinite_data_stage<F: FunctionNN>(
 ) -> (InfParOutputSys, BoolVarSys, Vec<UDynVarSys>, BoolVarSys) {
     let src_len = src_params.len();
     let dest_len = dests.len();
+    assert_ne!(temp_buffer_step, 0);
     assert_eq!(output_state.bitnum(), next_state.bitnum());
     assert_eq!(func.input_num(), src_len);
     assert_eq!(func.output_num(), dest_len);
