@@ -54,7 +54,10 @@ pub fn par_move_to_end_pos_stage(
     let mut output = output_base.clone();
     output.state = create_out_state(dynint_ite(
         end_of_stage.clone(),
-        UDynVarSys::from_n(end_stage, stage_type_len),
+        UDynVarSys::from_n(
+            if end_pos >= dp_len { end_stage } else { 0 },
+            stage_type_len,
+        ),
         UDynVarSys::from_n(outputs.len() + 1, stage_type_len),
     ));
     outputs.push(output);
