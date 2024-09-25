@@ -48,7 +48,7 @@ pub fn par_move_to_end_pos_stage(
     let end_stage = if end_pos >= dp_len {
         outputs.len() + 2 + usize::from(mem_address) + usize::from(proc_id)
     } else {
-        0
+        outputs.len()
     };
     let mut end_of_stage = input.dpval.bit((end_pos % dp_len) as usize);
     let mut output = output_base.clone();
