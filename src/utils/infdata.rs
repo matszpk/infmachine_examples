@@ -2,7 +2,7 @@ use super::*;
 
 // move to endpos
 
-pub fn par_move_to_endpos(
+pub fn par_move_to_end_pos(
     output_state: UDynVarSys,
     next_state: UDynVarSys,
     input: &mut InfParInputSys,
