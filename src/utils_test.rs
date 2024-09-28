@@ -56,7 +56,7 @@ fn gen_move_data_pos_test(
     output_2.stop = true.into();
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 1),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -104,7 +104,7 @@ fn gen_move_data_pos_expr_test(
     output_2.stop = true.into();
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 1),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -160,7 +160,7 @@ fn gen_move_data_pos_and_back_test(
 
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(1, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -244,7 +244,7 @@ fn gen_init_machine_end_pos_one_test(
     output_2.stop = true.into();
     let mut output_stages = vec![output_1, output_2];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 1),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -297,7 +297,7 @@ fn gen_copy_proc_id_to_temp_buffer_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -348,7 +348,7 @@ fn gen_copy_proc_id_to_mem_address_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -457,7 +457,7 @@ fn gen_copy_temp_buffer_to_mem_address_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -516,7 +516,7 @@ fn gen_copy_mem_address_to_temp_buffer_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -580,7 +580,7 @@ fn gen_copy_temp_buffer_to_temp_buffer_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -635,7 +635,7 @@ fn gen_process_proc_id_to_temp_buffer_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -688,7 +688,7 @@ fn gen_process_proc_id_to_mem_address_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -750,7 +750,7 @@ fn gen_process_proc_id_to_mem_address_ext_out_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -812,7 +812,7 @@ fn gen_process_temp_buffer_to_mem_address_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -873,7 +873,7 @@ fn gen_process_mem_address_to_temp_buffer_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -950,7 +950,7 @@ fn process_3_temp_buffer_2_to_mem_address(
     output_5.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4, output_5.clone()];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table_partial(
+    let final_state = dynint_opt_table_partial(
         mach_input.state.clone().subvalue(0, 3),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
         output_5.to_dynintvar(),
@@ -1010,7 +1010,7 @@ fn gen_process_to_mem_address_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -1073,7 +1073,7 @@ fn gen_process_to_temp_buffer_test(
     output_4.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3, output_4];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -1130,7 +1130,7 @@ fn gen_move_to_end_pos_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -1229,7 +1229,7 @@ fn gen_process_infinite_data_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
@@ -1283,7 +1283,7 @@ fn gen_mem_data_to_start_test(
     output_3.stop = true.into();
     let mut output_stages = vec![output_1, output_2, output_3.clone(), output_3];
     InfParOutputSys::fix_state_len(&mut output_stages);
-    let final_state = dynint_table(
+    let final_state = dynint_opt_table(
         mach_input.state.clone().subvalue(0, 2),
         output_stages.into_iter().map(|v| v.to_dynintvar()),
     );
