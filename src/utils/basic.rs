@@ -87,14 +87,14 @@ pub fn join_stage(
             .state
             .clone()
             .subvalue(state_start, output.state.bitnum() - state_start);
-        output.state = dynint_ite(
+        output.state = dynint_opt_ite(
             end.clone(),
             next_state.concat(UDynVarSys::from_n(0u8, output.state.bitnum() - state_start)),
             old_state.concat(state_stage),
         );
         output
     } else {
-        output.state = dynint_ite(end.clone(), next_state, old_state);
+        output.state = dynint_opt_ite(end.clone(), next_state, old_state);
         output
     }
 }
@@ -119,7 +119,7 @@ pub fn finish_stage_with_table(
     let last = UDynVarSys::from_n(0u8, output_stages[0].bitnum());
     // Use output state outside joining outputs to reduce gates. It is possible because
     // first outputs are state outputs.
-    let final_state = output_state.concat(dynint_table_partial(stage, output_stages, last));
+    let final_state = output_state.concat(dynint_opt_table_partial(stage, output_stages, last));
     let output = InfParOutputSys::new_from_dynintvar(input.config(), final_state);
     (join_stage(next_state, output, end.clone()), end)
 }
@@ -141,7 +141,7 @@ pub fn finish_machine_with_table(
     let last = UDynVarSys::from_n(0u8, output_stages[0].bitnum());
     // Use output state outside joining outputs to reduce gates. It is possible because
     // first outputs are state outputs.
-    let final_state = dynint_table_partial(stage, output_stages, last);
+    let final_state = dynint_opt_table_partial(stage, output_stages, last);
     mobj.in_state = Some(input.state.clone());
     mobj.from_dynintvar(final_state);
     mobj.to_machine()
