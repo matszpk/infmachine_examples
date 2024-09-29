@@ -403,12 +403,8 @@ fn main() {
                             "and" => |arg1, arg2| arg1 & arg2,
                             "or" => |arg1, arg2| arg1 | arg2,
                             "xor" => |arg1, arg2| arg1 ^ arg2,
-                            "min" => |arg1: UDynVarSys, arg2: UDynVarSys| {
-                                dynint_ite((&arg1).less_than(&arg2), arg1, arg2)
-                            },
-                            "max" => |arg1: UDynVarSys, arg2: UDynVarSys| {
-                                dynint_ite((&arg1).greater_than(&arg2), arg1, arg2)
-                            },
+                            "min" => |arg1, arg2| dynint_min(arg1, arg2),
+                            "max" => |arg1, arg2| dynint_max(arg1, arg2),
                             _ => {
                                 panic!("Unknown op");
                             }
