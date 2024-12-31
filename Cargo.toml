@@ -29,4 +29,5 @@ path = "src/utils_test.rs"
 
 [dependencies]
 infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
+gate_calc_log_bits = { path="../gate_calc_log_bits", version="0.1.0" }
 rand = "0.8"

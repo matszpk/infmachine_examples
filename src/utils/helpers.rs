@@ -2,24 +2,6 @@ use std::io::Write;
 
 use super::*;
 
-pub const fn calc_log_bits(n: usize) -> usize {
-    let nbits = usize::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
-
-pub const fn calc_log_bits_u64(n: u64) -> usize {
-    let nbits = u64::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
-
 pub struct CellVec {
     cell_len_bits: u32,
     len: u64,

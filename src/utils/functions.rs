@@ -1,3 +1,4 @@
+use gate_calc_log_bits::*;
 use std::ops::{BitAnd, BitOr, BitXor};
 
 use super::*;

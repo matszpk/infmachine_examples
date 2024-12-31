@@ -1,3 +1,4 @@
+use gate_calc_log_bits::*;
 use gategen::boolvar::*;
 use gategen::dynintvar::*;
 use gategen::intvar::*;
@@ -8,24 +9,6 @@ use std::env;
 use std::fs;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
-
-const fn calc_log_bits(n: usize) -> usize {
-    let nbits = usize::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
-
-const fn calc_log_bits_u64(n: u64) -> usize {
-    let nbits = u64::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
 
 #[derive(Clone)]
 struct StateTestState {

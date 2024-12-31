@@ -1,3 +1,4 @@
+use gate_calc_log_bits::*;
 use gategen::boolvar::*;
 use gategen::dynintvar::*;
 use gategen::intvar::*;
@@ -5,15 +6,6 @@ use infmachine_config::*;
 use infmachine_gen::*;
 
 use std::env;
-
-const fn calc_log_bits(n: usize) -> usize {
-    let nbits = usize::BITS - n.leading_zeros();
-    if (1 << (nbits - 1)) == n {
-        (nbits - 1) as usize
-    } else {
-        nbits as usize
-    }
-}
 
 fn gen_simple_inc(
     cell_len_bits: u32,

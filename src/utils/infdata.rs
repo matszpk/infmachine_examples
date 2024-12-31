@@ -1,4 +1,5 @@
 use super::*;
+use gate_calc_log_bits::*;
 
 // move to endpos
 
