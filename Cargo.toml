@@ -28,6 +28,6 @@ name = "utils_test"
 path = "src/utils_test.rs"
 
 [dependencies]
-infmachine_gen = { path = "../infmachine_gen", version = "0.1.0" }
+infmachine_gen = "0.1.0"
 gate_calc_log_bits = "0.1.0"
 rand = "0.8"
