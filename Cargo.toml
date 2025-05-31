@@ -1,7 +1,13 @@
 [package]
-name = "infmachine_examples0"
+name = "infmachine_examples"
+authors = ["Mateusz Szpakowski"]
+license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
+description = "Examples for the Infinite Machine."
+repository = "https://github.com/matszpk/infmachine_examples"
+keywords = ["gate", "logic", "circuit", "machine"]
+categories = ["science", "mathematics"]
 
 [[bin]]
 name = "state_test"
