@@ -2,7 +2,7 @@
 name = "infmachine_examples"
 authors = ["Mateusz Szpakowski"]
 license = "Apache-2.0"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Examples for the Infinite Machine."
 repository = "https://github.com/matszpk/infmachine_examples"
@@ -34,6 +34,6 @@ name = "utils_test"
 path = "src/utils_test.rs"
 
 [dependencies]
-infmachine_gen = "0.1.0"
+infmachine_gen = "0.2.0"
 gate_calc_log_bits = "0.1.0"
 rand = "0.8"

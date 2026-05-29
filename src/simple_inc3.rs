@@ -1,7 +1,7 @@
 use gate_calc_log_bits::*;
-use gategen::boolvar::*;
-use gategen::dynintvar::*;
-use gategen::intvar::*;
+use gategen2::boolvar::*;
+use gategen2::dynintvar::*;
+use gategen2::intvar::*;
 use infmachine_config::*;
 use infmachine_gen::*;
 
